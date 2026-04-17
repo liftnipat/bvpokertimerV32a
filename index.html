@@ -1,0 +1,3325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Tournament Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ── Casino Dark Theme ───────────────────────────────────────
+           Background:  #0a0e1a  (deep navy)
+           Surface:     #111827  (card/modal bg)
+           Surface-2:   #1a2236  (elevated surface)
+           Border:      #1e2d45  (subtle border)
+           Gold:        #c9a84c  (primary accent — level, title, CTA)
+           Gold-light:  #e8c97a  (hover / highlight)
+           Silver:      #8a9bb5  (secondary text, labels)
+           White:       #f0f4ff  (primary text)
+           Crimson:     #c0392b  (bust / danger)
+           Emerald:     #10b981  (play / positive)
+           Purple:      #7c3aed  (break)
+        ─────────────────────────────────────────────────────────────*/
+        :root {
+            --bg:        #0a0e1a;
+            --surface:   #111827;
+            --surface2:  #1a2236;
+            --border:    #1e2d45;
+            --gold:      #c9a84c;
+            --gold-lt:   #e8c97a;
+            --silver:    #8a9bb5;
+            --text:      #f0f4ff;
+            --crimson:   #c0392b;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            background-color: var(--bg);
+            color: var(--text);
+        }
+        .timer-display {
+            font-size: clamp(6rem, 20vw, 22rem);
+            line-height: 0.9;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            transition: color 0.5s ease-in-out;
+        }
+        .tabular-nums-text { font-variant-numeric: tabular-nums; }
+        .control-btn, .player-btn { transition: all 0.15s ease-in-out; }
+        .control-btn:active, .player-btn:active { transform: scale(0.95); }
+        .control-btn:disabled, .player-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .modal { z-index: 60; }
+        #simple-alert-modal { z-index: 70; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2a3f5f; }
+
+        /* Number inputs */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* Fullscreen */
+        #main-container.is-fullscreen {
+            max-width: 100% !important;
+            height: 100vh;
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg);
+        }
+        #main-container.is-fullscreen > .grid { flex-grow: 1; }
+        #main-container.is-fullscreen header > div:last-child {
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #main-container.is-fullscreen header:hover > div:last-child {
+            opacity: 1; pointer-events: auto;
+        }
+        #main-container.is-fullscreen #next-blinds-display { color: var(--silver); }
+
+        /* Dropdown */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: var(--surface2);
+            border: 1px solid var(--border);
+            min-width: 220px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            z-index: 100;
+            border-radius: 0.75rem;
+            padding: 0.4rem 0;
+        }
+        .dropdown-content button {
+            color: var(--text);
+            padding: 0.65rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            font-size: 0.875rem;
+        }
+        .dropdown-content button:hover { background-color: rgba(201,168,76,0.08); }
+        .dropdown-content .delete-action { color: #f87171; }
+        .dropdown-content .delete-action:hover { background-color: rgba(192,57,43,0.2); color: #fca5a5; }
+        .show { display: block; }
+
+        /* Info stats */
+        .info-stat-label, .payout-label {
+            font-size: clamp(0.75rem, 1.1vw, 1.1rem);
+            font-weight: 700;
+            color: var(--silver);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .info-stat-value {
+            font-size: clamp(2rem, 2.5vw, 3rem);
+            font-weight: 700;
+            line-height: 1.1;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+        .payout-value {
+            font-size: clamp(1.8rem, 2vw, 2.2rem);
+            font-weight: 700;
+            line-height: 1.1;
+            color: var(--text);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Drag and Drop */
+        .draggable { cursor: move; }
+        .drag-over { border-top: 2px solid var(--gold); }
+        [contenteditable]:focus { outline: 2px solid var(--gold); border-radius: 0.25rem; }
+
+        /* Gold glow on title */
+        #tournament-title {
+            background: linear-gradient(135deg, var(--gold-lt) 0%, var(--gold) 50%, #a07830 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+    </style>
+</head>
+<body class="text-white antialiased h-screen flex flex-col" style="background-color:#0a0e1a;">
+
+    <div id="main-container" class="container mx-auto p-4 lg:p-6 max-w-7xl flex flex-col flex-grow">
+        <!-- Header -->
+        <header class="relative flex justify-center items-center mb-4 shrink-0 h-10">
+             <h1 id="tournament-title" contenteditable="true" class="text-3xl md:text-4xl font-bold text-[#c9a84c] whitespace-nowrap px-2">Poker Tournament Manager</h1>
+             <div class="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <button id="player-toggle-btn" title="Players" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Players</span>
+                </button>
+                <button id="payout-editor-toggle-btn" title="Payout Structure" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Payouts</span>
+                </button>
+                <button id="blinds-editor-toggle-btn" title="Blinds Structure" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Blinds</span>
+                </button>
+                <button id="settings-toggle-btn" title="Settings" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Settings</span>
+                </button>
+                <button id="mute-btn" title="Mute/Unmute" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg id="volume-on-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                    <svg id="volume-off-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Sound</span>
+                </button>
+                <button id="fullscreen-btn" title="Fullscreen" class="group flex flex-col items-center gap-0.5 text-white p-2 rounded-xl control-btn w-14" style="background:#1a2236;">
+                    <svg id="fullscreen-open-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                    <svg id="fullscreen-close-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                    <span class="text-[10px] leading-none" style="color:#8a9bb5;">Fullscreen</span>
+                </button>
+             </div>
+        </header>
+
+        <!-- Bubble Time Alert Modal -->
+        <div id="bubble-time-modal" class="fixed inset-0 bg-black bg-opacity-90 flex flex-col justify-center items-center modal hidden">
+            <button id="bubble-time-close-btn" class="absolute top-6 right-6 text-[#6b7a94] hover:text-white control-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="text-center animate-pulse">
+                <div class="text-8xl mb-6">🫧</div>
+                <h2 class="text-6xl md:text-8xl font-bold text-[#c9a84c] tracking-tight">BUBBLE TIME</h2>
+                <p class="text-xl text-[#8a9bb5] mt-4 tracking-widest uppercase">Hand for Hand</p>
+            </div>
+        </div>
+
+        <!-- ITM Alert Modal -->
+        <div id="itm-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center modal hidden">
+            <div class="text-center">
+                 <h2 class="text-5xl md:text-7xl font-bold text-green-400">Congratulations!</h2>
+                 <p class="text-3xl md:text-4xl text-white mt-4">You are In The Money! 💰</p>
+            </div>
+        </div>
+        
+        <!-- Winner Alert Modal -->
+        <div id="winner-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center modal hidden">
+             <button id="winner-modal-close-btn" class="absolute top-6 right-6 text-[#8a9bb5] hover:text-white control-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <div id="winner-message" class="text-center text-5xl md:text-7xl font-bold text-[#c9a84c]">
+                 Congratulations, Winner! 
+            </div>
+        </div>
+
+        <!-- Simple Alert Modal -->
+         <div id="simple-alert-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center hidden" style="z-index: 210;">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-sm text-center">
+                <p id="simple-alert-message" class="text-lg mb-6">Alert message</p>
+                <button id="simple-alert-ok-btn" class="bg-[#c9a84c] hover:bg-[#a07830] text-white font-bold py-2 px-8 rounded-lg control-btn">OK</button>
+            </div>
+        </div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center hidden" style="z-index: 200;">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-lg text-center">
+                <p id="confirmation-message" class="text-lg mb-4">Are you sure?</p>
+                <div id="confirmation-details" class="mb-6 text-left"></div>
+                <div class="flex justify-center space-x-4">
+                    <button id="cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg control-btn">Cancel</button>
+                    <button id="confirm-btn" class="bg-[#c0392b] hover:bg-[#e74c3c] text-white font-bold py-2 px-6 rounded-lg control-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PKO: New Eliminator Selection Modal -->
+        <div id="eliminator-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden" style="z-index: 65;">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-md">
+                <h2 id="eliminator-modal-title" class="text-xl font-bold mb-4">
+                    Who eliminated Player [Name]?
+                </h2>
+                <p class="text-sm text-[#8a9bb5] mb-4">
+                    Select the player(s) who won the bounty. You can select multiple if they split the pot.
+                </p>
+                <div id="eliminator-bounty-info" class="mb-4 p-3 bg-[#0a0e1a]/50 rounded-lg">
+                    <!-- Bounty information here -->
+                </div>
+                <div id="eliminator-checkbox-list" class="space-y-1 mb-4 max-h-64 overflow-y-auto pr-2">
+                    <!-- Checkboxes will be generated dynamically -->
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="eliminator-cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    <button id="eliminator-confirm-btn" class="bg-[#c9a84c] hover:bg-[#a07830] text-white font-bold py-2 px-4 rounded-lg control-btn">Confirm</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Player Name Modal -->
+        <div id="edit-player-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-sm">
+                <h2 class="text-xl font-bold mb-4">Edit Player Name</h2>
+                <input type="text" id="edit-player-name-input" class="w-full bg-[#1a2236] border-[#2a3f5f] rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-[#c9a84c] focus:border-yellow-500 mb-4">
+                <div class="flex justify-end space-x-3">
+                    <button id="edit-player-cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    <button id="edit-player-save-btn" class="bg-[#c9a84c] hover:bg-[#a07830] text-white font-bold py-2 px-4 rounded-lg control-btn">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chip Chop Deal Input Modal -->
+        <div id="chip-chop-deal-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center modal hidden">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-lg">
+                <h2 class="text-xl font-bold mb-4">Heads-Up Deal</h2>
+                <p class="text-sm text-[#8a9bb5] mb-4">Enter the current chip counts for the final two players. The total must match the chips in play.</p>
+                <div id="chip-chop-inputs" class="space-y-4">
+                    <!-- Inputs will be generated here -->
+                </div>
+                <div class="mt-2 text-right">
+                    <p class="text-sm text-[#8a9bb5]">Total Chips in Play: <span id="chip-chop-total-chips" class="font-bold text-white">0</span></p>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button id="chip-chop-cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                    <button id="chip-chop-calculate-btn" class="bg-[#c9a84c] hover:bg-[#a07830] text-white font-bold py-2 px-4 rounded-lg control-btn">Calculate Deal</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- NEW: Payout Editor Modal -->
+        <div id="payout-editor-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-[#111827] p-0 rounded-2xl shadow-xl w-11/12 max-w-md flex flex-col overflow-hidden" style="max-height:85vh;">
+                <!-- Header -->
+                <div class="px-6 pt-6 pb-4 border-b border-[#1e2d45] shrink-0">
+                    <h2 class="text-xl font-bold">Payout Structure</h2>
+                    <p class="text-xs text-[#6b7a94] mt-1">Set the percentage each place receives</p>
+                </div>
+                <!-- Presets -->
+                <div class="px-6 py-3 border-b border-[#1e2d45] shrink-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider mr-1">Preset</span>
+                        <button class="payout-preset-btn text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1a2236] hover:bg-[#c9a84c] hover:text-black transition-colors control-btn" data-preset="top2">2 places</button>
+                        <button class="payout-preset-btn text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1a2236] hover:bg-[#c9a84c] hover:text-black transition-colors control-btn" data-preset="top3">3 places</button>
+                        <button class="payout-preset-btn text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#1a2236] hover:bg-[#c9a84c] hover:text-black transition-colors control-btn" data-preset="top4">4 places</button>
+                        <select id="payout-presets" class="hidden"></select>
+                    </div>
+                </div>
+                <!-- Column headers -->
+                <div class="grid grid-cols-[1fr_120px_36px] gap-x-3 px-6 py-2 text-xs font-bold text-[#6b7a94] uppercase tracking-wider shrink-0">
+                    <span>Place</span>
+                    <span class="text-right">Percentage</span>
+                    <span></span>
+                </div>
+                <!-- List -->
+                <div id="payout-editor-list" class="flex-grow overflow-y-auto px-6 space-y-2 pb-3">
+                </div>
+                <!-- Total bar -->
+                <div id="payout-total-bar-container" class="px-6 py-3 border-t border-[#1e2d45] shrink-0">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Total</span>
+                        <span id="payout-total-percentage" class="text-sm font-bold">0%</span>
+                    </div>
+                    <div class="w-full bg-[#1a2236] rounded-full h-1.5">
+                        <div id="payout-total-bar" class="h-1.5 rounded-full transition-all duration-300 bg-[#c9a84c]" style="width:0%"></div>
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t border-[#1e2d45] flex justify-between items-center shrink-0">
+                    <div class="flex gap-2">
+                        <button id="payout-editor-add-btn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-3 rounded-lg control-btn text-sm">+ Add</button>
+                        <button id="payout-editor-remove-btn" class="bg-[#1a2236] hover:bg-[#1e2d45] text-[#b8c5d6] font-bold py-2 px-3 rounded-lg control-btn text-sm">− Remove</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="payout-editor-cancel-btn" class="bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                        <button id="payout-editor-save-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-2 px-4 rounded-lg control-btn">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-[#111827] p-0 rounded-2xl shadow-xl w-11/12 max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+                
+                <!-- Header -->
+                <div class="px-6 pt-6 pb-4 border-b border-[#1e2d45] shrink-0">
+                    <h2 class="text-2xl font-bold">Tournament Settings</h2>
+                </div>
+
+                <div class="flex-grow overflow-y-auto">
+
+                    <!-- Section 1: Prize Pool -->
+                    <div class="px-6 pt-5 pb-4 border-b border-[#1e2d45]">
+                        <p class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider mb-3">Prize Pool</p>
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="buy-in" class="block text-xs font-medium text-[#8a9bb5] mb-1">Buy-in</label>
+                                    <input type="number" id="buy-in" value="400" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                                <div>
+                                    <label for="fee" class="block text-xs font-medium text-[#8a9bb5] mb-1">Fee / Rake</label>
+                                    <input type="number" id="fee" value="0" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="gtd" class="block text-xs font-medium text-[#8a9bb5] mb-1">Guaranteed Prize Pool (GTD) <span class="text-[#4a5568]">— 0 = disabled</span></label>
+                                <input type="number" id="gtd" value="0" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Chips -->
+                    <div class="px-6 pt-5 pb-4 border-b border-[#1e2d45]">
+                        <p class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider mb-3">Chip Counts</p>
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="starting-stack" class="block text-xs font-medium text-[#8a9bb5] mb-1">Starting Stack</label>
+                                    <input type="number" id="starting-stack" value="20000" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                                <div>
+                                    <label for="on-time-bonus" class="block text-xs font-medium text-[#8a9bb5] mb-1">On-Time Bonus</label>
+                                    <input type="number" id="on-time-bonus" value="2000" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Add-on (collapsible) -->
+                    <div class="px-6 pt-4 pb-4 border-b border-[#1e2d45]">
+                        <label class="flex items-center justify-between cursor-pointer group" id="addon-toggle-label">
+                            <div class="flex items-center gap-3">
+                                <div id="addon-toggle-indicator" class="w-9 h-5 rounded-full bg-[#1e2d45] relative transition-colors duration-200">
+                                    <div id="addon-toggle-knob" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200"></div>
+                                </div>
+                                <span class="text-sm font-semibold text-white">Add-on</span>
+                            </div>
+                            <span class="text-xs text-[#6b7a94] group-hover:text-[#8a9bb5]">Optional</span>
+                        </label>
+                        <input type="checkbox" id="addon-enabled-checkbox" class="sr-only">
+                        <div id="addon-fields" class="hidden mt-4 space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="add-on-price" class="block text-xs font-medium text-[#8a9bb5] mb-1">Price</label>
+                                    <input type="number" id="add-on-price" value="400" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                                <div>
+                                    <label for="add-on-chips" class="block text-xs font-medium text-[#8a9bb5] mb-1">Chips</label>
+                                    <input type="number" id="add-on-chips" value="20000" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="add-on-fee" class="block text-xs font-medium text-[#8a9bb5] mb-1">Fee / Rake</label>
+                                <input type="number" id="add-on-fee" value="0" class="block w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 4: PKO -->
+                    <div class="px-6 pt-4 pb-5">
+                        <div class="flex items-center justify-between opacity-40 cursor-not-allowed select-none">
+                            <div class="flex items-center gap-3">
+                                <input id="pko-mode-checkbox" type="checkbox" class="sr-only" disabled>
+                                <div class="w-9 h-5 rounded-full bg-[#1e2d45] relative">
+                                    <div class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white"></div>
+                                </div>
+                                <span class="text-sm font-semibold text-white">PKO Mode 🎯</span>
+                            </div>
+                            <span class="text-xs font-medium px-2 py-0.5 rounded bg-[#1a2236] text-[#8a9bb5]">Coming soon</span>
+                        </div>
+                        <div id="bounty-percentage-container" class="hidden">
+                            <input type="number" id="bounty-percentage" value="50" class="sr-only">
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t border-[#1e2d45] flex justify-end gap-3 shrink-0">
+                    <button id="settings-cancel-btn" class="bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold py-2 px-5 rounded-lg control-btn">Cancel</button>
+                    <button id="settings-save-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-2 px-5 rounded-lg control-btn">Save</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Player Management Modal -->
+        <div id="player-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-4xl flex flex-col h-[90vh]">
+                <!-- Header with player count badge -->
+                <div class="flex items-center justify-between mb-4 shrink-0">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-2xl font-bold">Players</h2>
+                        <span id="player-count-badge" class="text-sm font-semibold px-2.5 py-1 rounded-full bg-[#1a2236] text-[#b8c5d6]"></span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-[1fr,80px,80px,140px] gap-x-4 mb-2 text-xs font-bold text-[#6b7a94] uppercase tracking-wider px-3">
+                    <span>Player</span>
+                    <span class="text-center">Buy-ins</span>
+                    <span class="text-center">Add-on</span>
+                    <span class="text-right">Actions</span>
+                </div>
+                <div id="player-management-content" class="flex-grow flex flex-col min-h-0">
+                    <div id="player-list" class="space-y-1.5 flex-grow overflow-y-auto pr-2">
+                        <!-- Player items will be injected here -->
+                    </div>
+                </div>
+                <!-- Add Player section -->
+                <div id="player-add-controls" class="mt-4 pt-4 border-t border-[#1e2d45] shrink-0">
+                    <div class="flex gap-2">
+                        <input type="text" id="player-name-input" placeholder="Player name..." class="flex-grow bg-[#1a2236] border-[#2a3f5f] rounded-lg shadow-sm py-2.5 px-3 text-white placeholder-[#6b7a94] focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent">
+                        <!-- On-Time as a toggle pill -->
+                        <label for="on-time-checkbox" id="on-time-label" class="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#2a3f5f] bg-[#1a2236] text-[#8a9bb5] cursor-pointer select-none hover:border-gray-500 transition-colors">
+                            <input id="on-time-checkbox" type="checkbox" class="sr-only">
+                            <svg id="on-time-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <span class="text-sm font-medium whitespace-nowrap">On-Time</span>
+                        </label>
+                        <button id="add-player-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-2.5 px-5 rounded-lg control-btn whitespace-nowrap">Add Player</button>
+                    </div>
+                </div>
+                <div id="multi-bust-controls" class="hidden flex gap-2 mt-4 pt-4 border-t border-[#1e2d45] shrink-0">
+                    <button id="multi-bust-confirm-btn" class="flex-grow bg-[#c0392b] hover:bg-[#e74c3c] text-white font-bold py-2 px-4 rounded-lg control-btn">Confirm Busts</button>
+                    <button id="multi-bust-cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Cancel</button>
+                </div>
+                <div class="mt-4 flex justify-between items-center shrink-0">
+                    <button id="multi-bust-btn" class="bg-[#1a2236] hover:bg-[#1e2d45] border border-[#2a3f5f] text-white font-bold py-2 px-4 rounded-lg control-btn text-sm">Multiple Bust</button>
+                    <button id="player-modal-close-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-2 px-6 rounded-lg control-btn">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Blinds Editor Modal -->
+        <div id="blinds-editor-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+            <div class="bg-[#111827] p-6 rounded-2xl shadow-xl w-11/12 max-w-4xl flex flex-col h-[90vh]">
+                <div class="flex items-center gap-3 mb-4 shrink-0">
+                    <h2 class="text-2xl font-bold">Blinds Structure Editor</h2>
+                    <span id="blinds-editor-level-count" class="text-sm font-medium px-2.5 py-1 rounded-full bg-[#1a2236] text-[#8a9bb5]"></span>
+                </div>
+                <div class="grid gap-x-3 mb-2 px-2 items-center" style="grid-template-columns: 20px 52px 1fr 1fr 1fr 80px 1.4fr 28px;">
+                    <span></span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider text-center">Lv</span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Small Blind</span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Big Blind</span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Ante</span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Mins</span>
+                    <span class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider">Message</span>
+                    <span></span>
+                </div>
+                <div id="blinds-editor-list" class="flex-grow overflow-y-auto pr-2 space-y-1.5">
+                    <!-- Blind level inputs will be injected here -->
+                </div>
+                <div class="mt-4 border-t border-[#1e2d45] pt-4 shrink-0 space-y-3">
+                    <!-- Row 1: action buttons + Late Reg -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex gap-2 flex-wrap">
+                            <button id="blinds-editor-add-level-btn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg control-btn text-sm">Add Level</button>
+                            <button id="blinds-editor-add-break-btn" class="bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold py-2 px-4 rounded-lg control-btn text-sm">Add Break</button>
+                            <button id="blinds-editor-reset-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg control-btn text-sm">Reset</button>
+                            <button id="blinds-editor-templates-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg control-btn text-sm">📋 Templates</button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label for="late-reg-level" class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider whitespace-nowrap">Late Reg ends</label>
+                            <select id="late-reg-level" class="bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-1.5 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Row 2: Cancel / Save -->
+                    <div class="flex justify-end gap-2">
+                        <button id="blinds-editor-cancel-btn" class="bg-[#1e2d45] hover:bg-gray-500 text-white font-bold py-2 px-5 rounded-lg control-btn">Cancel</button>
+                        <button id="blinds-editor-save-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-2 px-5 rounded-lg control-btn">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Template Manager Modal -->
+        <div id="template-manager-modal" class="fixed inset-0 bg-black bg-opacity-80 flex justify-center items-center hidden" style="z-index: 80;">
+            <div class="bg-[#0a0e1a] border border-[#1e2d45] p-0 rounded-2xl shadow-2xl w-11/12 max-w-lg flex flex-col overflow-hidden" style="max-height: 85vh;">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-blue-900/60 to-indigo-900/60 px-6 py-5 border-b border-[#1e2d45] shrink-0">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl">📋</span>
+                        <div>
+                            <h2 class="text-xl font-bold text-white">Blind Structure Templates</h2>
+                            <p class="text-sm text-[#8a9bb5] mt-0.5">Save and reload your favourite structures</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Save section -->
+                <div class="px-6 py-4 bg-gray-800/50 border-b border-[#1e2d45] shrink-0">
+                    <p class="text-xs font-semibold text-[#8a9bb5] uppercase tracking-wider mb-2">Save Current Structure</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="template-name-input" placeholder="Enter template name..." class="flex-grow bg-[#1a2236] border border-[#2a3f5f] rounded-lg shadow-sm py-2.5 px-3 text-white placeholder-[#6b7a94] focus:outline-none focus:ring-2 focus:ring-[#c9a84c] focus:border-transparent text-sm">
+                        <button id="template-save-current-btn" class="bg-[#c9a84c] hover:bg-[#e8c97a] active:bg-yellow-600 text-black font-bold py-2.5 px-4 rounded-lg control-btn whitespace-nowrap text-sm flex items-center gap-1.5 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Template List -->
+                <div class="flex-grow overflow-y-auto px-6 py-4">
+                    <p class="text-xs font-semibold text-[#8a9bb5] uppercase tracking-wider mb-3">Saved Templates</p>
+                    <div id="template-list" class="space-y-2.5">
+                        <!-- Templates injected here -->
+                    </div>
+                    <div id="template-empty-msg" class="text-center text-[#6b7a94] py-12 hidden">
+                        <p class="text-5xl mb-3">🗂️</p>
+                        <p class="font-semibold text-[#8a9bb5]">No templates saved yet</p>
+                        <p class="text-sm mt-1 text-[#6b7a94]">Use the field above to save your current structure.</p>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-[#1e2d45] flex justify-end shrink-0">
+                    <button id="template-manager-close-btn" class="bg-[#1a2236] hover:bg-[#1e2d45] text-white font-semibold py-2 px-6 rounded-lg control-btn text-sm">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <!-- MODIFIED: Widened side columns for better space utilization on large screens -->
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,_380px)_1fr_minmax(0,_380px)] lg:gap-x-8 items-start flex-grow min-h-0">
+
+            <!-- Left Column: Info -->
+            <div id="tournament-info-list" class="flex flex-col text-center justify-between h-full py-8">
+                <!-- Info items will be generated here -->
+            </div>
+
+            <!-- Center Column: Clock -->
+            <div class="my-6 lg:my-0 flex flex-col items-center justify-center h-full">
+                <div id="clock-content-wrapper" class="flex-grow flex flex-col items-center min-h-0 w-full">
+                    
+                    <!-- Timer (takes up remaining space) -->
+                    <div class="text-center w-full my-auto flex flex-col items-center justify-center">
+                        <!-- MODIFIED: Larger Level display -->
+                        <h2 id="current-level-display" class="text-5xl md:text-6xl lg:text-7xl font-bold text-center text-[#c9a84c] shrink-0 mb-2">Level 1</h2>
+                        <!-- MODIFIED: Reduced Blinds Display size for TV -->
+                        <p class="text-5xl md:text-7xl lg:text-8xl font-bold mt-2 mb-6" id="current-blinds-display">100 / 100 (100)</p>
+
+                        <div class="inline-block">
+                            <div class="timer-display text-white" id="timer-display">
+                                15:00
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Group -->
+                    <div class="text-center w-full shrink-0">
+                         <div class="mb-6">
+                            <span class="text-[#6b7a94] text-lg lg:text-xl uppercase tracking-widest font-semibold">Next</span>
+                            <p class="text-4xl lg:text-5xl font-bold text-[#8a9bb5] tabular-nums-text mt-1" id="next-blinds-display">100 / 200 (200)</p>
+                        </div>
+                        <!-- Time Controls -->
+                        <div id="time-controls-container" class="flex items-center justify-center gap-2 md:gap-4 w-full flex-wrap pt-4">
+                            <!-- MODIFIED: Larger Start button -->
+                            <button id="start-btn" class="control-btn bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-[72px] py-4 px-12 rounded-xl text-3xl">Start</button>
+                            
+                            <div id="running-controls" class="hidden items-center justify-center gap-3 md:gap-3 w-full flex-wrap">
+                                <button id="prev-level-btn" title="Previous Level" class="control-btn bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold h-[64px] w-[64px] flex items-center justify-center rounded-2xl">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>
+                                </button>
+                                <button id="forward-btn" class="control-btn bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold h-[64px] w-[80px] flex items-center justify-center rounded-2xl text-xl font-semibold">+60s</button>
+
+                                <button id="pause-btn" class="control-btn bg-[#c9a84c] hover:bg-[#e8c97a] text-white font-bold rounded-2xl h-[72px] w-[72px] flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="currentColor"><rect x="6" y="5" width="7" height="22" rx="2"/><rect x="19" y="5" width="7" height="22" rx="2"/></svg>
+                                </button>
+                                <button id="resume-btn" class="control-btn bg-emerald-500 hover:bg-emerald-400 text-white font-bold rounded-2xl h-[72px] w-[72px] hidden items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M8 5.14v14l11-7-11-7z"/></svg>
+                                </button>
+
+                                <button id="rewind-btn" class="control-btn bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold h-[64px] w-[80px] flex items-center justify-center rounded-2xl text-xl font-semibold">−60s</button>
+                                <button id="next-level-btn" title="Next Level" class="control-btn bg-[#1a2236] hover:bg-[#1e2d45] text-white font-bold h-[64px] w-[64px] flex items-center justify-center rounded-2xl">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Payouts & Bounties -->
+            <div id="right-column-container" class="flex flex-col text-center justify-start h-full py-8 overflow-y-auto overflow-x-hidden pr-2 space-y-6">
+                <!-- Payouts -->
+                <div>
+                    <div id="prize-pool-container" class="text-center mb-8">
+                        <p class="payout-label">Main Prize Pool</p>
+                        <p id="prize-pool-display" class="payout-value text-5xl">0</p>
+                    </div>
+                    <!-- MODIFIED: Increased spacing for payout list -->
+                    <div id="payout-list" class="space-y-6">
+                        <!-- Payout structure will be injected here -->
+                    </div>
+                </div>
+                <!-- PKO: Bounty Board Container -->
+                <div id="bounty-board-container" class="hidden">
+                     <!-- Content will be generated by JS -->
+                </div>
+                <div id="chip-chop-deal-container" class="mt-auto pt-4 hidden">
+                    <button id="chip-chop-deal-btn" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg control-btn">Heads-Up Deal 💸</button>
+                </div>
+            </div>
+        </div>
+        <!-- Footer is removed as per request -->
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- STATE MANAGEMENT ---
+    let settings = {
+        buyIn: 400,
+        fee: 0,
+        startingStack: 20000,
+        onTimeBonus: 2000,
+        gtd: 0,
+        lateRegLevel: 10, // CHANGE 5: Default changed from 8 to 10
+        tournamentName: 'Poker Tournament Manager',
+        addOnPrice: 400,
+        addOnChips: 20000,
+        addOnFee: 0,
+        addOnEnabled: false,
+        pkoMode: false,
+        bountyPercentage: 50,
+    };
+    
+    let customPayoutStructure = null;
+    let tempPayoutStructure = [];
+    
+    // CHANGE 1: Updated defaultBlindLevels to 40-level structure
+    const defaultBlindLevels = [
+        { type: 'level', level: 1, sb: 100, bb: 100, ante: 100, duration: 15 * 60, message: '' },
+        { type: 'level', level: 2, sb: 100, bb: 200, ante: 200, duration: 15 * 60, message: '' },
+        { type: 'level', level: 3, sb: 100, bb: 300, ante: 300, duration: 15 * 60, message: '' },
+        { type: 'level', level: 4, sb: 200, bb: 300, ante: 300, duration: 15 * 60, message: '' },
+        { type: 'level', level: 5, sb: 200, bb: 400, ante: 400, duration: 15 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 6, sb: 200, bb: 500, ante: 500, duration: 15 * 60, message: '' },
+        { type: 'level', level: 7, sb: 300, bb: 600, ante: 600, duration: 15 * 60, message: '' },
+        { type: 'level', level: 8, sb: 400, bb: 800, ante: 800, duration: 15 * 60, message: '' },
+        { type: 'level', level: 9, sb: 500, bb: 1000, ante: 1000, duration: 15 * 60, message: '' },
+        { type: 'level', level: 10, sb: 600, bb: 1200, ante: 1200, duration: 15 * 60, message: '' },
+        { type: 'break', duration: 20 * 60, message: 'Remove Chip 100' }, // CHANGE 2: Added break message
+        { type: 'level', level: 11, sb: 1000, bb: 1500, ante: 1500, duration: 15 * 60, message: '' },
+        { type: 'level', level: 12, sb: 1000, bb: 2000, ante: 2000, duration: 15 * 60, message: '' },
+        { type: 'level', level: 13, sb: 1000, bb: 2500, ante: 2500, duration: 15 * 60, message: '' },
+        { type: 'level', level: 14, sb: 1500, bb: 3000, ante: 3000, duration: 15 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: 'Remove Chip 500' }, // CHANGE 2: Added break message
+        { type: 'level', level: 15, sb: 2000, bb: 4000, ante: 4000, duration: 12 * 60, message: '' },
+        { type: 'level', level: 16, sb: 2000, bb: 5000, ante: 5000, duration: 12 * 60, message: '' },
+        { type: 'level', level: 17, sb: 3000, bb: 6000, ante: 6000, duration: 12 * 60, message: '' },
+        { type: 'level', level: 18, sb: 4000, bb: 8000, ante: 8000, duration: 12 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 19, sb: 5000, bb: 10000, ante: 10000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 20, sb: 6000, bb: 12000, ante: 12000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 21, sb: 8000, bb: 16000, ante: 16000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 22, sb: 10000, bb: 20000, ante: 20000, duration: 10 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 23, sb: 10000, bb: 25000, ante: 25000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 24, sb: 15000, bb: 30000, ante: 30000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 25, sb: 20000, bb: 40000, ante: 40000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 26, sb: 25000, bb: 50000, ante: 50000, duration: 10 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 27, sb: 30000, bb: 60000, ante: 60000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 28, sb: 40000, bb: 80000, ante: 80000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 29, sb: 50000, bb: 100000, ante: 100000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 30, sb: 60000, bb: 120000, ante: 120000, duration: 10 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 31, sb: 80000, bb: 160000, ante: 160000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 32, sb: 100000, bb: 200000, ante: 200000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 33, sb: 125000, bb: 250000, ante: 250000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 34, sb: 150000, bb: 300000, ante: 300000, duration: 10 * 60, message: '' },
+        { type: 'break', duration: 10 * 60, message: '' },
+        { type: 'level', level: 35, sb: 200000, bb: 400000, ante: 400000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 36, sb: 250000, bb: 500000, ante: 500000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 37, sb: 300000, bb: 600000, ante: 600000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 38, sb: 400000, bb: 800000, ante: 800000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 39, sb: 500000, bb: 1000000, ante: 1000000, duration: 10 * 60, message: '' },
+        { type: 'level', level: 40, sb: 600000, bb: 1200000, ante: 1200000, duration: 10 * 60, message: '' },
+    ];
+    
+    let blindLevels = JSON.parse(JSON.stringify(defaultBlindLevels));
+    let tempBlindLevels = []; // For use in the editor modal
+
+    let players = [];
+    let tournamentState = {
+        currentLevelIndex: 0,
+        timeLeftInLevel: blindLevels[0].duration,
+        currentStageDuration: blindLevels[0].duration,
+        isPaused: true,
+        isTournamentStarted: false,
+        timerInterval: null,
+        totalElapsedTime: 0, 
+        totalEntries: { buyIn: 0, addOn: 0 },
+        totalBonusChips: 0,
+        isDealActive: false,
+        hasDealBeenOffered: false,
+        isBubbleDealPending: false,
+        hasAnnouncedITM: false,
+        isITMAnnouncementPending: false,
+        wasPausedBeforeModal: null,
+        isWinnerPendingConfirmation: false,
+        isWinnerReadyToAnnounce: false,
+        isMultiBustMode: false,
+        multiBustSelection: [],
+        bubbleProtectionPayouts: 0,
+        bubbleProtectionWinners: [],
+        editingPlayerId: null,
+        overlay: 0,
+        isMuted: false,
+        isHeadsUp: false,
+        finalICMDeal: null,
+        pendingBust: null,
+    };
+
+    // --- AUDIO CONTEXT for SOUNDS ---
+    let audioCtx;
+    const initAudio = () => {
+        if (!audioCtx) {
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.error("Web Audio API is not supported in this browser");
+            }
+        }
+    };
+    const playBeep = (count = 1) => {
+        if (!audioCtx || tournamentState.isMuted) return;
+        
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+                gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            }, i * 150);
+        }
+    };
+    const playChime = () => {
+        if (!audioCtx || tournamentState.isMuted) return;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime); // High pitch
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.2);
+    };
+
+    // Mellow descending chime for Break — feels like "pause/relax"
+    const playBreakChime = () => {
+        if (!audioCtx || tournamentState.isMuted) return;
+        const notes = [660, 550, 440]; // descending E5→C#5→A4
+        notes.forEach((freq, i) => {
+            setTimeout(() => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            }, i * 200);
+        });
+    };
+
+    // --- DOM ELEMENTS ---
+    const dom = {
+        mainContainer: document.getElementById('main-container'),
+        tournamentTitle: document.getElementById('tournament-title'),
+        settingsToggleBtn: document.getElementById('settings-toggle-btn'),
+        settingsModal: document.getElementById('settings-modal'),
+        settingsSaveBtn: document.getElementById('settings-save-btn'),
+        settingsCancelBtn: document.getElementById('settings-cancel-btn'),
+        playerToggleBtn: document.getElementById('player-toggle-btn'),
+        playerModal: document.getElementById('player-modal'),
+        playerModalCloseBtn: document.getElementById('player-modal-close-btn'),
+        bubbleTimeModal: document.getElementById('bubble-time-modal'),
+        bubbleTimeCloseBtn: document.getElementById('bubble-time-close-btn'),
+        itmModal: document.getElementById('itm-modal'),
+        winnerModal: document.getElementById('winner-modal'),
+        winnerMessage: document.getElementById('winner-message'),
+        winnerModalCloseBtn: document.getElementById('winner-modal-close-btn'),
+        simpleAlertModal: document.getElementById('simple-alert-modal'),
+        simpleAlertMessage: document.getElementById('simple-alert-message'),
+        simpleAlertOkBtn: document.getElementById('simple-alert-ok-btn'),
+        confirmationModal: document.getElementById('confirmation-modal'),
+        confirmationMessage: document.getElementById('confirmation-message'),
+        confirmationDetails: document.getElementById('confirmation-details'),
+        confirmBtn: document.getElementById('confirm-btn'),
+        cancelBtn: document.getElementById('cancel-btn'),
+        editPlayerModal: document.getElementById('edit-player-modal'),
+        editPlayerNameInput: document.getElementById('edit-player-name-input'),
+        editPlayerSaveBtn: document.getElementById('edit-player-save-btn'),
+        editPlayerCancelBtn: document.getElementById('edit-player-cancel-btn'),
+        chipChopDealModal: document.getElementById('chip-chop-deal-modal'),
+        chipChopInputs: document.getElementById('chip-chop-inputs'),
+        chipChopTotalChips: document.getElementById('chip-chop-total-chips'),
+        chipChopCancelBtn: document.getElementById('chip-chop-cancel-btn'),
+        chipChopCalculateBtn: document.getElementById('chip-chop-calculate-btn'),
+        chipChopDealContainer: document.getElementById('chip-chop-deal-container'),
+        chipChopDealBtn: document.getElementById('chip-chop-deal-btn'),
+        buyInInput: document.getElementById('buy-in'),
+        feeInput: document.getElementById('fee'),
+        gtdInput: document.getElementById('gtd'),
+        startingStackInput: document.getElementById('starting-stack'),
+        onTimeBonusInput: document.getElementById('on-time-bonus'),
+        lateRegLevelInput: document.getElementById('late-reg-level'), // CHANGE 6: This is now a <select>
+        playerNameInput: document.getElementById('player-name-input'),
+        addPlayerBtn: document.getElementById('add-player-btn'),
+        onTimeCheckbox: document.getElementById('on-time-checkbox'),
+        playerList: document.getElementById('player-list'),
+        prizePoolDisplay: document.getElementById('prize-pool-display'),
+        prizePoolContainer: document.getElementById('prize-pool-container'),
+        payoutList: document.getElementById('payout-list'),
+        currentLevelDisplay: document.getElementById('current-level-display'),
+        timerDisplay: document.getElementById('timer-display'),
+        currentBlindsDisplay: document.getElementById('current-blinds-display'),
+        nextBlindsDisplay: document.getElementById('next-blinds-display'),
+        startBtn: document.getElementById('start-btn'),
+        runningControls: document.getElementById('running-controls'),
+        prevLevelBtn: document.getElementById('prev-level-btn'),
+        rewindBtn: document.getElementById('rewind-btn'),
+        pauseBtn: document.getElementById('pause-btn'),
+        resumeBtn: document.getElementById('resume-btn'),
+        forwardBtn: document.getElementById('forward-btn'),
+        nextLevelBtn: document.getElementById('next-level-btn'),
+        tournamentInfoList: document.getElementById('tournament-info-list'),
+        fullscreenBtn: document.getElementById('fullscreen-btn'),
+        fullscreenOpenIcon: document.getElementById('fullscreen-open-icon'),
+        fullscreenCloseIcon: document.getElementById('fullscreen-close-icon'),
+        multiBustBtn: document.getElementById('multi-bust-btn'),
+        multiBustControls: document.getElementById('multi-bust-controls'),
+        multiBustConfirmBtn: document.getElementById('multi-bust-confirm-btn'),
+        multiBustCancelBtn: document.getElementById('multi-bust-cancel-btn'),
+        playerAddControls: document.getElementById('player-add-controls'),
+        muteBtn: document.getElementById('mute-btn'),
+        volumeOnIcon: document.getElementById('volume-on-icon'),
+        volumeOffIcon: document.getElementById('volume-off-icon'),
+        blindsEditorToggleBtn: document.getElementById('blinds-editor-toggle-btn'),
+        blindsEditorModal: document.getElementById('blinds-editor-modal'),
+        blindsEditorList: document.getElementById('blinds-editor-list'),
+        blindsEditorLevelCount: document.getElementById('blinds-editor-level-count'),
+        blindsEditorAddLevelBtn: document.getElementById('blinds-editor-add-level-btn'),
+        blindsEditorAddBreakBtn: document.getElementById('blinds-editor-add-break-btn'),
+        blindsEditorResetBtn: document.getElementById('blinds-editor-reset-btn'),
+        blindsEditorSaveBtn: document.getElementById('blinds-editor-save-btn'),
+        blindsEditorCancelBtn: document.getElementById('blinds-editor-cancel-btn'),
+        pkoModeCheckbox: document.getElementById('pko-mode-checkbox'),
+        bountyPercentageContainer: document.getElementById('bounty-percentage-container'),
+        bountyPercentageInput: document.getElementById('bounty-percentage'),
+        bountyBoardContainer: document.getElementById('bounty-board-container'),
+        eliminatorModal: document.getElementById('eliminator-modal'),
+        eliminatorModalTitle: document.getElementById('eliminator-modal-title'),
+        eliminatorBountyInfo: document.getElementById('eliminator-bounty-info'),
+        eliminatorCheckboxList: document.getElementById('eliminator-checkbox-list'),
+        eliminatorCancelBtn: document.getElementById('eliminator-cancel-btn'),
+        eliminatorConfirmBtn: document.getElementById('eliminator-confirm-btn'),
+        payoutEditorToggleBtn: document.getElementById('payout-editor-toggle-btn'),
+        payoutEditorModal: document.getElementById('payout-editor-modal'),
+        payoutPresets: document.getElementById('payout-presets'),
+        payoutEditorList: document.getElementById('payout-editor-list'),
+        payoutTotalPercentage: document.getElementById('payout-total-percentage'),
+        payoutEditorAddBtn: document.getElementById('payout-editor-add-btn'),
+        payoutEditorRemoveBtn: document.getElementById('payout-editor-remove-btn'),
+        payoutEditorCancelBtn: document.getElementById('payout-editor-cancel-btn'),
+        payoutEditorSaveBtn: document.getElementById('payout-editor-save-btn'),
+        addOnPriceInput: document.getElementById('add-on-price'),
+        addOnChipsInput: document.getElementById('add-on-chips'),
+        addOnFeeInput: document.getElementById('add-on-fee'),
+        // Template Manager
+        blindsEditorTemplatesBtn: document.getElementById('blinds-editor-templates-btn'),
+        templateManagerModal: document.getElementById('template-manager-modal'),
+        templateManagerCloseBtn: document.getElementById('template-manager-close-btn'),
+        templateNameInput: document.getElementById('template-name-input'),
+        templateSaveCurrentBtn: document.getElementById('template-save-current-btn'),
+        templateList: document.getElementById('template-list'),
+        templateEmptyMsg: document.getElementById('template-empty-msg'),
+    };
+
+    // --- HELPER FUNCTIONS ---
+
+    const formatTime = (seconds) => {
+        if (seconds < 0) seconds = 0;
+        const totalMinutes = Math.floor(seconds / 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        const secs = seconds % 60;
+        
+        if (hours > 0) {
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+
+    const formatNumber = (num) => new Intl.NumberFormat('en-US').format(Math.round(num));
+
+    const formatChips = (num) => {
+        if (num >= 1000000) { // Handle millions
+            return (num / 1000000).toFixed(1).replace('.0', '') + 'M';
+        }
+        if (num >= 1000) {
+            return (num / 1000).toFixed(1).replace('.0', '') + 'K';
+        }
+        return new Intl.NumberFormat('en-US').format(num);
+    };
+
+    const getOrdinalSuffix = (n) => {
+        const s = ["th", "st", "nd", "rd"];
+        const v = n % 100;
+        return n + (s[(v - 20) % 10] || s[v] || s[0]);
+    }
+    
+    const getPayoutStructure = () => {
+        if (settings.pkoMode) {
+            const uniquePlayerCount = new Set(players.map(p => p.name)).size;
+            if (uniquePlayerCount < 3) return []; 
+            return [{ rank: 1, percent: 40 }, { rank: 2, percent: 40 }, { rank: 3, percent: 20 }];
+        }
+        
+        if (customPayoutStructure) {
+            return customPayoutStructure;
+        }
+
+        const totalBuyIns = tournamentState.totalEntries.buyIn;
+        if (totalBuyIns > 0) {
+            if (totalBuyIns <= 7) { 
+                return [{ rank: 1, percent: 70 }, { rank: 2, percent: 30 }];
+            } else if (totalBuyIns <= 11) {
+                return [{ rank: 1, percent: 50 }, { rank: 2, percent: 30 }, { rank: 3, percent: 20 }];
+            } else { 
+                return [{ rank: 1, percent: 50 }, { rank: 2, percent: 25 }, { rank: 3, percent: 15 }, { rank: 4, percent: 10 }];
+            }
+        }
+        return [];
+    };
+
+    const updateAllUI = () => {
+        renderPlayers();
+        renderBlinds();
+        renderStats();
+        renderPayouts();
+        renderTimer();
+        updateTimerVisuals();
+        updateDealButtons();
+    };
+    
+    // --- RENDER FUNCTIONS ---
+    
+    const recalculateRanks = () => {
+        const eliminatedPlayers = players.filter(p => p.isEliminated);
+        eliminatedPlayers.sort((a, b) => a.eliminationOrder - b.eliminationOrder);
+        eliminatedPlayers.forEach((player, index) => {
+            player.eliminationOrder = index + 1;
+        });
+    };
+    
+    const renderTimer = () => {
+        dom.timerDisplay.textContent = formatTime(tournamentState.timeLeftInLevel);
+    };
+
+    const updateTimerVisuals = () => {
+        const timerEl = dom.timerDisplay;
+        const time = tournamentState.timeLeftInLevel;
+
+        const colors = {
+            white: 'text-white',
+            yellow: 'text-[#c9a84c]',
+            orange: 'text-orange-500',
+            red: 'text-red-500'
+        };
+
+        Object.values(colors).forEach(colorClass => timerEl.classList.remove(colorClass));
+        timerEl.classList.remove('animate-pulse');
+        
+        if (tournamentState.isPaused || !tournamentState.isTournamentStarted) {
+            timerEl.classList.add(colors.white);
+            return;
+        }
+
+        const currentStage = blindLevels[tournamentState.currentLevelIndex];
+        if (currentStage && currentStage.type === 'break') {
+            timerEl.classList.add(colors.yellow);
+            return;
+        }
+
+        if (time <= 30) {
+            timerEl.classList.add(colors.red);
+            if (time <= 10) timerEl.classList.add('animate-pulse');
+        } else if (time <= 60) {
+            timerEl.classList.add(colors.orange);
+        } else if (time <= 120) {
+            timerEl.classList.add(colors.yellow);
+        } else {
+            timerEl.classList.add(colors.white);
+        }
+
+        if (!tournamentState.isPaused && tournamentState.isTournamentStarted && (!currentStage || currentStage.type !== 'break')) {
+            if (time > 0 && time <= 10) {
+                playBeep(1);
+            } else if (time === 30) {
+                playBeep(2);
+            } else if (time === 60) {
+                playBeep(1);
+            }
+        }
+    };
+
+    const renderBlinds = () => {
+        const currentStage = blindLevels[tournamentState.currentLevelIndex];
+        const nextStage = blindLevels[tournamentState.currentLevelIndex + 1];
+
+        // Use formatChips for blind values now
+        const formatBlindValue = (value) => formatChips(value);
+
+        if (tournamentState.isPaused && tournamentState.isTournamentStarted) {
+            dom.currentLevelDisplay.textContent = (currentStage.type === 'break') ? `BREAK` : `Level ${currentStage.level}`;
+            // Show actual blinds even when paused so players can still read them
+            if (currentStage.type === 'break') {
+                dom.currentBlindsDisplay.innerHTML = currentStage.message
+                    ? `${currentStage.message} <span class="inline-block text-base font-semibold bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/40 rounded px-2 py-0.5 ml-2 align-middle">⏸ PAUSED</span>`
+                    : `Resuming Soon <span class="inline-block text-base font-semibold bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/40 rounded px-2 py-0.5 ml-2 align-middle">⏸ PAUSED</span>`;
+            } else {
+                dom.currentBlindsDisplay.innerHTML = `${formatBlindValue(currentStage.sb)} / ${formatBlindValue(currentStage.bb)} (${formatBlindValue(currentStage.ante)}) <span class="inline-block text-base font-semibold bg-[#c9a84c]/20 text-[#c9a84c] border border-[#c9a84c]/40 rounded px-2 py-0.5 ml-2 align-middle">⏸ PAUSED</span>`;
+            }
+        } else if (currentStage.type === 'break') {
+            dom.currentLevelDisplay.textContent = `BREAK`;
+            // CHANGE 2: Check for custom break message
+            if (currentStage.message) {
+                dom.currentBlindsDisplay.textContent = currentStage.message;
+            } else {
+                dom.currentBlindsDisplay.textContent = `Resuming Soon`;
+            }
+        } else {
+            dom.currentLevelDisplay.textContent = `Level ${currentStage.level}`;
+            dom.currentBlindsDisplay.textContent = `${formatBlindValue(currentStage.sb)} / ${formatBlindValue(currentStage.bb)} (${formatBlindValue(currentStage.ante)})`;
+        }
+
+        if (nextStage) {
+            if(nextStage.type === 'break') {
+                let breakMsg = nextStage.message ? ` - ${nextStage.message}` : '';
+                dom.nextBlindsDisplay.textContent = `${nextStage.duration / 60} min Break${breakMsg}`;
+            } else {
+                dom.nextBlindsDisplay.textContent = `LV ${nextStage.level} - ${formatBlindValue(nextStage.sb)} / ${formatBlindValue(nextStage.bb)} (${formatBlindValue(nextStage.ante)})`;
+            }
+        } else {
+            dom.nextBlindsDisplay.textContent = 'Last Level';
+        }
+    };
+    
+    const renderPlayers = () => {
+        dom.playerList.innerHTML = '';
+
+        const playerRanks = {};
+        const totalUniquePlayers = new Set(players.map(p => p.name)).size;
+        const eliminatedPlayers = players.filter(p => p.isEliminated).sort((a, b) => b.eliminationOrder - a.eliminationOrder);
+
+        eliminatedPlayers.forEach((player) => {
+            const rank = totalUniquePlayers - player.eliminationOrder + 1;
+            playerRanks[player.id] = getOrdinalSuffix(rank);
+        });
+
+        // Update count badge
+        const activeCnt = players.filter(p => !p.isEliminated).length;
+        const totalCnt = players.length;
+        const badge = document.getElementById('player-count-badge');
+        if (badge) badge.textContent = totalCnt === 0 ? 'No players' : `${activeCnt} active · ${totalCnt} total`;
+        
+        const sortedPlayers = [...players].sort((a, b) => {
+            // Active players first, busted last
+            if (a.isEliminated && !b.isEliminated) return 1;
+            if (!a.isEliminated && b.isEliminated) return -1;
+            // Among active: alphabetical A-Z
+            if (!a.isEliminated && !b.isEliminated) {
+                return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+            }
+            // Among busted: most recently eliminated first (highest order = latest)
+            return b.eliminationOrder - a.eliminationOrder;
+        });
+        
+        let shownBustDivider = false;
+        sortedPlayers.forEach(player => {
+            // Insert divider before first busted player
+            if (player.isEliminated && !shownBustDivider && sortedPlayers.some(p => !p.isEliminated)) {
+                shownBustDivider = true;
+                const divider = document.createElement('div');
+                divider.className = 'flex items-center gap-2 px-1 py-1';
+                divider.innerHTML = `<div class="flex-grow h-px bg-slate-700"></div><span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Busted</span><div class="flex-grow h-px bg-slate-700"></div>`;
+                dom.playerList.appendChild(divider);
+            }
+            const playerDiv = document.createElement('div');
+            playerDiv.className = `player-row grid gap-x-4 items-center px-3 py-2 rounded-lg`;
+            playerDiv.style.gridTemplateColumns = '1fr 80px 80px 140px';
+
+            // Avatar initials
+            const initials = player.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+            const avatarColors = ['bg-blue-600', 'bg-[#7c3aed]', 'bg-teal-600', 'bg-orange-600', 'bg-pink-600', 'bg-indigo-600'];
+            const avatarColor = avatarColors[player.id % avatarColors.length];
+
+            const onTimeIcon = player.isOnTime
+                ? `<span title="On-Time Bonus"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-green-400 inline"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>`
+                : '';
+            
+            let playerNameHtml;
+            let avatarHtml;
+            if (player.isEliminated) {
+                playerDiv.classList.add('bg-[#1a2236]/40');
+                const rank = playerRanks[player.id] || '';
+                avatarHtml = `<div class="w-7 h-7 rounded-full bg-[#1e2d45] flex items-center justify-center text-xs font-bold text-[#8a9bb5] shrink-0">${initials}</div>`;
+                playerNameHtml = `<span class="font-medium text-[#6b7a94] truncate">${player.name}</span> ${onTimeIcon} <span class="text-xs font-bold text-[#a07830]/70">${rank}</span>`;
+            } else {
+                playerDiv.classList.add('bg-[#1a2236]/60', 'hover:bg-[#1a2236]');
+                avatarHtml = `<div class="w-7 h-7 rounded-full ${avatarColor} flex items-center justify-center text-xs font-bold text-white shrink-0">${initials}</div>`;
+                playerNameHtml = `<span class="font-semibold text-white truncate">${player.name}</span> ${onTimeIcon}`;
+            }
+
+            const actionsHtml = tournamentState.isMultiBustMode ? '' : `
+                <div class="relative text-right flex items-center justify-end gap-1.5">
+                    ${player.isEliminated
+                        ? `<button data-action="re-entry" data-id="${player.id}" class="player-btn bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg">Re-entry</button>`
+                        : `<button data-action="bust" data-id="${player.id}" class="player-btn bg-[#c0392b]/80 hover:bg-[#e74c3c] text-white text-xs font-bold py-1.5 px-3 rounded-lg">Bust</button>`
+                    }
+                </div>`;
+            
+            const kebabMenu = `
+                <div class="dropdown">
+                    <button data-action="toggle-kebab" data-id="${player.id}" class="h-7 w-7 rounded-full flex items-center justify-center text-[#6b7a94] hover:text-[#b8c5d6] hover:bg-[#1e2d45] transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    </button>
+                    <div id="dropdown-${player.id}" class="dropdown-content">
+                        <button data-action="edit" data-id="${player.id}">✏️ Edit Name</button>
+                        ${settings.addOnEnabled ? `<button data-action="add-addon" data-id="${player.id}" ${player.addOnCount > 0 ? 'disabled' : ''}>➕ Add Add-on</button>` : ''}
+                        <button data-action="bubble" data-id="${player.id}">
+                             ${player.hasBubbleProtection 
+                                ? `<span class="text-lg text-green-400">✔️</span>` 
+                                : `<span class="text-lg">🛡️</span>`
+                             }
+                             <span>Bubble Protection</span>
+                        </button>
+                        <button data-action="delete" data-id="${player.id}" class="delete-action">🗑️ Delete Player</button>
+                    </div>
+                </div>`;
+
+            playerDiv.innerHTML = `
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="multi-bust-checkbox-container ${tournamentState.isMultiBustMode && !player.isEliminated ? 'block' : 'hidden'} shrink-0">
+                        <input type="checkbox" data-id="${player.id}" class="multi-bust-checkbox w-4 h-4 text-[#a07830] bg-[#1a2236] border-[#2a3f5f] rounded focus:ring-[#c9a84c]" ${tournamentState.multiBustSelection.includes(player.id) ? 'checked' : ''}>
+                    </div>
+                    ${avatarHtml}
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        ${playerNameHtml}
+                    </div>
+                </div>
+                <div class="text-center font-semibold text-sm tabular-nums-text ${player.isEliminated ? 'text-[#6b7a94]' : 'text-[#b8c5d6]'}">${player.buyInCount}</div>
+                <div class="text-center font-semibold text-sm tabular-nums-text ${player.isEliminated ? 'text-[#6b7a94]' : 'text-[#b8c5d6]'}">${player.addOnCount > 0 ? player.addOnCount : '—'}</div>
+                <div class="player-actions-container flex items-center justify-end gap-1 ${tournamentState.isMultiBustMode ? 'hidden' : ''}">
+                    ${actionsHtml}
+                    ${kebabMenu}
+                </div>
+            `;
+            dom.playerList.appendChild(playerDiv);
+        });
+    };
+
+    const renderStats = () => {
+        let activePlayersCount = players.filter(p => !p.isEliminated).length;
+        
+        let totalChipStack = 0;
+        let totalBuyIns = 0;
+        let totalAddOns = 0;
+        
+        players.forEach(p => {
+            totalBuyIns += p.buyInCount;
+            totalAddOns += p.addOnCount;
+            totalChipStack += p.buyInCount * settings.startingStack;
+            if (p.isOnTime && p.buyInCount > 0) {
+                totalChipStack += settings.onTimeBonus;
+            }
+            totalChipStack += p.addOnCount * settings.addOnChips;
+        });
+
+        tournamentState.totalEntries.buyIn = totalBuyIns;
+        tournamentState.totalEntries.addOn = totalAddOns;
+
+        if (activePlayersCount === 0 && players.length > 0 && tournamentState.isTournamentStarted) {
+             activePlayersCount = 1;
+        }
+
+        const averageStack = activePlayersCount > 0 ? Math.round(totalChipStack / activePlayersCount) : 0;
+        const currentStage = blindLevels[tournamentState.currentLevelIndex];
+        const currentBB = (currentStage && currentStage.type === 'level') ? currentStage.bb : (blindLevels[tournamentState.currentLevelIndex - 1]?.bb || 0);
+
+        
+        const averageStackInBBValue = currentBB > 0 ? (averageStack / currentBB) : 0;
+        const averageStackInBB = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(averageStackInBBValue);
+        
+        const lateRegEndsAtLevel = settings.lateRegLevel;
+        let lateRegHtml = '';
+
+        if (!tournamentState.isTournamentStarted) {
+             lateRegHtml = `<div class="info-stat-item"><p class="info-stat-label">LATE REG.</p><p class="info-stat-value">Level ${lateRegEndsAtLevel}</p></div>`;
+        } else {
+            let totalLateRegDurationInSeconds = 0;
+            let levelsPassed = 0;
+            for(let i=0; i < blindLevels.length; i++) {
+                totalLateRegDurationInSeconds += blindLevels[i].duration;
+                if(blindLevels[i].type === 'level') {
+                    levelsPassed++;
+                }
+                if (levelsPassed === lateRegEndsAtLevel) {
+                    // Also include any breaks immediately following this level
+                    for(let j = i + 1; j < blindLevels.length; j++) {
+                        if (blindLevels[j].type === 'break') {
+                            totalLateRegDurationInSeconds += blindLevels[j].duration;
+                        } else {
+                            break; // stop at next level
+                        }
+                    }
+                    break;
+                }
+            }
+            
+            let timeRemainingInSeconds = totalLateRegDurationInSeconds - tournamentState.totalElapsedTime;
+            
+            if (timeRemainingInSeconds <= 0) {
+                 lateRegHtml = `<div class="info-stat-item"><p class="info-stat-label">LATE REG.</p><p class="info-stat-value text-red-400">CLOSED</p></div>`;
+            } else {
+                lateRegHtml = `<div class="info-stat-item"><p class="info-stat-label">LATE REG.</p><p class="info-stat-value tabular-nums-text">${formatTime(timeRemainingInSeconds)}</p></div>`;
+            }
+        }
+
+        let nextBreakHtml = '<div class="info-stat-item">';
+        
+        if (currentStage && currentStage.type === 'break') {
+            nextBreakHtml += '<p class="info-stat-label">ON BREAK</p>';
+            nextBreakHtml += `<p class="info-stat-value text-[#c9a84c] tabular-nums-text">${formatTime(tournamentState.timeLeftInLevel)}</p>`;
+        } else {
+            let nextBreakIndex = -1;
+            for(let i = tournamentState.currentLevelIndex; i < blindLevels.length; i++) {
+                if (blindLevels[i].type === 'break') {
+                    nextBreakIndex = i;
+                    break;
+                }
+            }
+
+            if (nextBreakIndex !== -1) {
+                nextBreakHtml += '<p class="info-stat-label">NEXT BREAK</p>';
+                
+                let timeUntilBreak = tournamentState.timeLeftInLevel;
+                for(let i = tournamentState.currentLevelIndex + 1; i < nextBreakIndex; i++) {
+                    timeUntilBreak += blindLevels[i].duration;
+                }
+                
+                if (timeUntilBreak < 0) timeUntilBreak = 0;
+                
+                nextBreakHtml += `<p class="info-stat-value tabular-nums-text">${formatTime(timeUntilBreak)}</p>`;
+            } else {
+                nextBreakHtml += '<p class="info-stat-label">NEXT BREAK</p>';
+                nextBreakHtml += `<p class="info-stat-value">NO MORE BREAKS</p>`;
+            }
+        }
+        nextBreakHtml += '</div>';
+        
+        const uniquePlayerCount = new Set(players.map(p => p.name)).size;
+        const totalReEntries = Math.max(0, tournamentState.totalEntries.buyIn - uniquePlayerCount);
+        const infoHtml = `
+            <div class="info-stat-item py-4">
+                <p class="info-stat-label">Players</p>
+                <p class="info-stat-value">${activePlayersCount} / ${uniquePlayerCount}</p>
+            </div>
+            <div class="info-stat-item py-4">
+                <p class="info-stat-label whitespace-nowrap">Re-Entries | Add-ons</p>
+                <p class="info-stat-value">${totalReEntries} | ${tournamentState.totalEntries.addOn}</p>
+            </div>
+            <div class="info-stat-item py-4">
+                <p class="info-stat-label">Chips In Play</p>
+                <p class="info-stat-value">${formatChips(totalChipStack)}</p>
+            </div>
+            <div class="info-stat-item py-4">
+                <p class="info-stat-label">Average Stack</p>
+                <p class="info-stat-value">${formatChips(averageStack)}</p>
+                <p class="info-stat-value text-[#c9a84c]">(${averageStackInBB} BBs)</p>
+            </div>
+            ${lateRegHtml.replace('info-stat-item"', 'info-stat-item py-4"')}
+            ${nextBreakHtml.replace('info-stat-item"', 'info-stat-item py-4"')}
+        `;
+        dom.tournamentInfoList.innerHTML = infoHtml;
+    };
+
+    const calculateFinalPayouts = () => {
+        const totalBuyInValue = tournamentState.totalEntries.buyIn * settings.buyIn;
+        const totalAddOnValue = tournamentState.totalEntries.addOn * settings.addOnPrice;
+        
+        let prizePoolForCalc = totalBuyInValue + totalAddOnValue;
+
+        if (settings.pkoMode) {
+            prizePoolForCalc -= totalBuyInValue * (settings.bountyPercentage / 100);
+        }
+        
+        const totalFee = (tournamentState.totalEntries.buyIn * settings.fee) + (tournamentState.totalEntries.addOn * settings.addOnFee);
+        prizePoolForCalc -= totalFee;
+
+        if (settings.gtd > prizePoolForCalc) {
+            prizePoolForCalc = settings.gtd;
+        }
+
+        prizePoolForCalc -= tournamentState.bubbleProtectionPayouts;
+        
+        let payoutStructure = getPayoutStructure();
+        
+        let finalPayouts = [];
+        if (payoutStructure.length > 0) {
+            if (tournamentState.isDealActive) {
+                const bubblePrize = settings.buyIn;
+                const adjustedPrizePool = prizePoolForCalc - bubblePrize;
+                let totalCalculated = 0;
+                const basePayouts = payoutStructure.map(p => {
+                    const amount = Math.floor(adjustedPrizePool * (p.percent / 100));
+                    totalCalculated += amount;
+                    return { rank: p.rank, amount };
+                });
+
+                const remainder = adjustedPrizePool - totalCalculated;
+                if (remainder > 0 && basePayouts.length > 0) {
+                    basePayouts[0].amount += remainder;
+                }
+                finalPayouts = basePayouts;
+                finalPayouts.push({ rank: payoutStructure.length + 1, amount: bubblePrize });
+            } else {
+                let totalCalculated = 0;
+                const basePayouts = payoutStructure.map(p => {
+                    const amount = Math.floor(prizePoolForCalc * (p.percent / 100));
+                    totalCalculated += amount;
+                    return { rank: p.rank, amount };
+                });
+
+                // Give any unallocated remainder to 1st place (never exceeds pool)
+                const remainder = prizePoolForCalc - totalCalculated;
+                if (remainder !== 0 && basePayouts.length > 0) {
+                    basePayouts[0].amount += remainder;
+                }
+                finalPayouts = basePayouts;
+            }
+        }
+        return finalPayouts;
+    };
+
+    const getPayoutByRank = (rank) => {
+        const finalPayouts = calculateFinalPayouts();
+        const rankInfo = finalPayouts.find(p => p.rank === rank);
+        return rankInfo ? rankInfo.amount : 0;
+    };
+
+    const renderPayouts = () => {
+        const totalBuyInValue = tournamentState.totalEntries.buyIn * settings.buyIn;
+        const totalAddOnValue = tournamentState.totalEntries.addOn * settings.addOnPrice;
+        let prizePoolForCalc = totalBuyInValue + totalAddOnValue;
+
+        if (settings.pkoMode) {
+            prizePoolForCalc -= totalBuyInValue * (settings.bountyPercentage / 100);
+        }
+        
+        const totalFee = (tournamentState.totalEntries.buyIn * settings.fee) + (tournamentState.totalEntries.addOn * settings.addOnFee);
+        prizePoolForCalc -= totalFee;
+
+        let prizePoolForDisplay = prizePoolForCalc;
+        
+        if (settings.gtd > prizePoolForCalc) {
+            tournamentState.overlay = settings.gtd - prizePoolForCalc;
+            prizePoolForDisplay = settings.gtd;
+        } else {
+            tournamentState.overlay = 0;
+        }
+        
+        dom.prizePoolDisplay.textContent = formatNumber(prizePoolForDisplay);
+        dom.prizePoolContainer.querySelector('.payout-label').textContent = settings.pkoMode ? 'Main Prize Pool' : 'Total Prize Pool';
+
+        const existingOverlay = document.getElementById('overlay-display');
+        if(existingOverlay) existingOverlay.remove();
+
+        if (tournamentState.overlay > 0) {
+            const overlayDiv = document.createElement('div');
+            overlayDiv.id = 'overlay-display';
+            overlayDiv.className = 'text-center';
+            overlayDiv.innerHTML = `<span class="text-sm text-[#8a9bb5]">Overlay: </span><span class="text-sm font-semibold text-red-400">${formatNumber(tournamentState.overlay)}</span>`;
+            dom.prizePoolContainer.appendChild(overlayDiv);
+        }
+    
+        const finalPayouts = calculateFinalPayouts();
+        dom.payoutList.innerHTML = '';
+        const medalMap = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        
+        const eliminatedPlayers = players.filter(p => p.isEliminated).sort((a,b) => b.eliminationOrder - a.eliminationOrder);
+        const totalUniquePlayers = new Set(players.map(p => p.name)).size;
+        
+        const payoutResults = [];
+        eliminatedPlayers.forEach(player => {
+            const rank = totalUniquePlayers - player.eliminationOrder + 1;
+            const payoutAmount = getPayoutByRank(rank);
+            // MODIFIED: Only add players to the results if they have a payout > 0
+            if (payoutAmount > 0) {
+                payoutResults.push({
+                    player: player,
+                    rank: rank,
+                    rankText: getOrdinalSuffix(rank),
+                    amount: payoutAmount, 
+                    bounty: player.totalBountiesEarned || 0,
+                });
+            }
+        });
+
+        const finalResults = [];
+        const processedRanks = new Set();
+        payoutResults.sort((a,b) => a.rank - b.rank).forEach(result => {
+            if (processedRanks.has(result.rank)) return;
+            
+            const tiedPlayers = payoutResults.filter(p => p.rank === result.rank);
+            if (tiedPlayers.length > 1) {
+                const ranksToSplit = tiedPlayers.map((_, i) => result.rank + i);
+                const totalPrizeToSplit = ranksToSplit.reduce((sum, r) => sum + (getPayoutByRank(r) || 0), 0);
+                const splitAmount = Math.floor(totalPrizeToSplit / tiedPlayers.length);
+                
+                tiedPlayers.forEach((tiedPlayer, i) => {
+                    finalResults.push({
+                        ...tiedPlayer,
+                        amount: splitAmount,
+                        rankText: `T-${getOrdinalSuffix(result.rank)}`,
+                    });
+                    processedRanks.add(result.rank + i);
+                });
+            } else {
+                finalResults.push(result);
+                processedRanks.add(result.rank);
+            }
+        });
+        
+        let displayRows = finalResults.map(r => ({ ...r, isPlaceholder: false }));
+        
+        finalPayouts.forEach(payoutSpot => {
+            if (!displayRows.some(r => r.rank === payoutSpot.rank)) {
+                displayRows.push({
+                    isPlaceholder: true,
+                    rank: payoutSpot.rank,
+                    rankText: getOrdinalSuffix(payoutSpot.rank),
+                    amount: payoutSpot.amount,
+                    bounty: 0,
+                    player: { name: '...' }
+                });
+            }
+        });
+
+        displayRows.sort((a, b) => a.rank - b.rank);
+    
+        displayRows.forEach(row => {
+            const payoutDiv = document.createElement('div');
+            payoutDiv.className = 'payout-item flex justify-between items-center w-full';
+           
+            const medal = medalMap[row.rank] || '💰';
+            const playerNameToDisplay = row.player.name || '...';
+
+            let amountHtml = '';
+            if (settings.pkoMode) {
+                const prizeMoney = formatNumber(row.amount);
+                let bountyPart = '';
+                if (row.isPlaceholder) {
+                    bountyPart = `<span class="text-[#c9a84c] text-lg">+ 🎯</span>`;
+                } else if (row.bounty > 0) {
+                    bountyPart = `<span class="text-[#c9a84c] text-lg">+ 🎯 ${formatNumber(row.bounty)}</span>`;
+                }
+                amountHtml = `<div class="text-right"><div class="text-2xl lg:text-3xl font-bold">${prizeMoney}</div><div>${bountyPart}</div></div>`;
+            } else {
+                amountHtml = `<span class="text-2xl lg:text-3xl font-bold tabular-nums-text">${formatNumber(row.amount)}</span>`;
+            }
+            
+            payoutDiv.innerHTML = `
+                <div class="flex items-center text-left min-w-0 gap-3 mr-3">
+                    <span class="text-2xl lg:text-3xl shrink-0">${medal}</span>
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold text-[#6b7a94] uppercase tracking-wider leading-none mb-0.5">${row.rankText}</p>
+                        <p class="text-lg lg:text-xl font-semibold text-gray-200 truncate" title="${playerNameToDisplay}">${playerNameToDisplay}</p>
+                    </div>
+                </div>
+                <div class="font-bold text-white shrink-0">${amountHtml}</div>
+            `;
+            dom.payoutList.appendChild(payoutDiv);
+        });
+
+        if (tournamentState.bubbleProtectionWinners.length > 0) {
+             const separator = document.createElement('hr');
+             separator.className = 'my-3 border-[#2a3f5f]';
+             dom.payoutList.appendChild(separator);
+
+             const header = document.createElement('h3');
+             header.className = 'text-center text-sm text-[#8a9bb5] uppercase tracking-wider mb-2';
+             header.textContent = 'Bubble Protection Payout';
+             dom.payoutList.appendChild(header);
+            
+            tournamentState.bubbleProtectionWinners.forEach(payout => {
+                const payoutDiv = document.createElement('div');
+                payoutDiv.className = 'flex justify-between items-center bg-[#1a2236]/50 p-2 rounded';
+                payoutDiv.innerHTML = `
+                    <div class="flex items-center min-w-0">
+                        <div class="w-14 shrink-0">
+                            <span class="font-bold text-[#c9a84c]">Bubble</span>
+                        </div>
+                        <span class="text-[#b8c5d6] text-sm truncate ml-2" title="${payout.name}">
+                            ${payout.name}
+                        </span>
+                    </div>
+                    <span class="font-semibold text-white">${formatNumber(payout.amount)}</span>
+                `;
+                dom.payoutList.appendChild(payoutDiv);
+            });
+        }
+        
+        renderBountyBoard();
+    };
+    
+    const renderBountyBoard = () => {
+        if (!settings.pkoMode || !tournamentState.isTournamentStarted) {
+            dom.bountyBoardContainer.innerHTML = '';
+            dom.bountyBoardContainer.classList.add('hidden');
+            return;
+        }
+
+        const activePlayers = players
+            .filter(p => !p.isEliminated)
+            .sort((a, b) => b.currentBounty - a.currentBounty);
+        
+        if (activePlayers.length === 0) {
+            dom.bountyBoardContainer.innerHTML = '';
+            dom.bountyBoardContainer.classList.add('hidden');
+            return;
+        }
+
+        dom.bountyBoardContainer.classList.remove('hidden');
+        let boardHtml = `
+            <hr class="my-6 border-[#2a3f5f]">
+            <h3 class="payout-label mb-3">Current Bounties 🎯</h3>
+            <div class="space-y-2">
+        `;
+        
+        activePlayers.forEach((player) => {
+            const displayBounty = Math.round(player.currentBounty / 2);
+            boardHtml += `
+                <div class="flex justify-between items-center text-lg">
+                    <span class="text-[#b8c5d6] truncate text-left" title="${player.name}">${player.name}</span>
+                    <span class="font-bold text-[#c9a84c] tabular-nums-text">🎯 ${formatNumber(displayBounty)}</span>
+                </div>
+            `;
+        });
+        boardHtml += `</div>`;
+        dom.bountyBoardContainer.innerHTML = boardHtml;
+    };
+
+    // --- EVENT HANDLERS ---
+    
+    const handleAddPlayer = () => {
+        const name = dom.playerNameInput.value.trim();
+        if (!name) return;
+
+        const isOnTime = dom.onTimeCheckbox.checked;
+        const existingPlayer = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+        
+        if (existingPlayer) {
+             showSimpleAlert('A player with this name already exists.');
+            return;
+        }
+        
+        let initialBounty = 0;
+        if(settings.pkoMode) {
+             initialBounty = Math.round(settings.buyIn * (settings.bountyPercentage / 100));
+        }
+
+        players.push({
+            id: Date.now(),
+            name: name,
+            buyInCount: 1,
+            addOnCount: 0,
+            isOnTime: isOnTime,
+            isEliminated: false,
+            eliminationOrder: 0,
+            hasBubbleProtection: false,
+            wasAwardedBubbleProtection: false,
+            initialBounty: initialBounty,
+            currentBounty: initialBounty,
+            totalBountiesEarned: 0,
+        });
+       
+        dom.playerNameInput.value = '';
+        dom.onTimeCheckbox.checked = false;
+        // Reset pill style
+        const onTimeLabel = document.getElementById('on-time-label');
+        if (onTimeLabel) {
+            onTimeLabel.classList.remove('border-green-500', 'bg-green-900/30', 'text-green-400');
+            onTimeLabel.classList.add('border-[#2a3f5f]', 'bg-[#1a2236]', 'text-[#8a9bb5]');
+        }
+        updateAllUI();
+        dom.playerNameInput.focus();
+    };
+
+    const handleFinishTournament = () => {
+        const winner = players.find(p => !p.isEliminated);
+        if (winner) {
+            const maxOrder = Math.max(0, ...players.map(p => p.eliminationOrder));
+            winner.eliminationOrder = maxOrder + 1;
+            winner.isEliminated = true;
+            
+            const winnerPrize = getPayoutByRank(1) || 0;
+
+            if (settings.pkoMode) {
+                const finalBountiesWon = winner.totalBountiesEarned + winner.currentBounty;
+                dom.winnerMessage.innerHTML = `Congratulations, ${winner.name}! 🏆<br><span class="text-3xl mt-4 block">Prize: ${formatNumber(winnerPrize)} + 🎯 ${formatNumber(finalBountiesWon)}</span>`;
+            } else {
+                dom.winnerMessage.innerHTML = `Congratulations, ${winner.name}! 🏆`;
+            }
+
+            dom.winnerModal.classList.remove('hidden');
+            setTimeout(() => dom.winnerModal.classList.add('hidden'), 300000);
+        }
+        handlePauseTimer();
+        updateAllUI();
+    };
+
+    const processBustsWithEliminators = (bustedPlayerIds, eliminatorIds) => {
+        const maxOrder = Math.max(0, ...players.filter(p => p.isEliminated).map(p => p.eliminationOrder));
+        
+        bustedPlayerIds.forEach((id) => {
+            const bustedPlayer = players.find(p => p.id === id);
+            if (bustedPlayer) {
+                bustedPlayer.eliminationOrder = maxOrder + 1;
+            }
+        });
+        
+        if (settings.pkoMode && eliminatorIds.length > 0) {
+            let totalBountyToDistribute = 0;
+            bustedPlayerIds.forEach(id => {
+                const bustedPlayer = players.find(p => p.id === id);
+                if (bustedPlayer) {
+                    totalBountyToDistribute += bustedPlayer.currentBounty;
+                }
+            });
+
+            const totalCashToAward = Math.round(totalBountyToDistribute / 2);
+            const totalBountyValueToAdd = totalBountyToDistribute - totalCashToAward;
+
+            const baseCashShare = Math.floor(totalCashToAward / eliminatorIds.length);
+            const baseBountyValueShare = Math.floor(totalBountyValueToAdd / eliminatorIds.length);
+            
+            let cashAwarded = 0;
+            let bountyValueAdded = 0;
+
+            eliminatorIds.forEach((eliminatorId, index) => {
+                const eliminator = players.find(p => p.id === eliminatorId);
+                if (!eliminator) return;
+
+                let cashForThisPlayer = baseCashShare;
+                let bountyValueForThisPlayer = baseBountyValueShare;
+
+                if (index === eliminatorIds.length - 1) {
+                    cashForThisPlayer = totalCashToAward - cashAwarded;
+                    bountyValueForThisPlayer = totalBountyValueToAdd - bountyValueAdded;
+                }
+
+                eliminator.totalBountiesEarned += cashForThisPlayer;
+                eliminator.currentBounty += bountyValueForThisPlayer;
+
+                cashAwarded += cashForThisPlayer;
+                bountyValueAdded += bountyValueForThisPlayer;
+            });
+        }
+
+        bustedPlayerIds.forEach(playerId => {
+            const player = players.find(p => p.id === playerId);
+            if (player) {
+                player.isEliminated = true;
+                player.hasBubbleProtection = false; // Player is out, remove protection status
+            }
+        });
+        
+        const activePlayersCount = players.filter(p => !p.isEliminated).length;
+        if (activePlayersCount === 2) {
+            tournamentState.isHeadsUp = true;
+        } else {
+            tournamentState.isHeadsUp = false;
+        }
+        
+        const payoutStructure = getPayoutStructure();
+        const numPayoutSpots = payoutStructure.length;
+        
+        // CHANGE 3: Fixed Bubble Protection logic
+        if (activePlayersCount === numPayoutSpots && numPayoutSpots > 0) { // Just hit the bubble
+            bustedPlayerIds.forEach(playerId => {
+                const bustedPlayer = players.find(p => p.id === playerId);
+                // Check if player HAD protection and has NOT been awarded it yet
+                if (bustedPlayer && bustedPlayer.hasBubbleProtection && !bustedPlayer.wasAwardedBubbleProtection) {
+                    bustedPlayer.wasAwardedBubbleProtection = true; // Mark as awarded
+                    tournamentState.bubbleProtectionPayouts += settings.buyIn;
+                    tournamentState.bubbleProtectionWinners.push({ name: bustedPlayer.name, amount: settings.buyIn });
+                    showSimpleAlert(`${bustedPlayer.name} is on the bubble and receives their buy-in back!`);
+                }
+            });
+        }
+    
+        const lateRegEndsAtLevel = settings.lateRegLevel;
+        let totalLateRegDurationInSeconds = 0;
+        let levelsPassed = 0;
+        for(let i = 0; i < blindLevels.length; i++) {
+            totalLateRegDurationInSeconds += blindLevels[i].duration;
+            if(blindLevels[i].type === 'level') levelsPassed++;
+            if(levelsPassed === lateRegEndsAtLevel) {
+                for(let j = i + 1; j < blindLevels.length; j++) {
+                    if(blindLevels[j].type === 'break') totalLateRegDurationInSeconds += blindLevels[j].duration;
+                    else break;
+                }
+                break;
+            }
+        }
+        const isLateRegClosed = tournamentState.isTournamentStarted && tournamentState.totalElapsedTime >= totalLateRegDurationInSeconds;
+        
+        if (isLateRegClosed && activePlayersCount === numPayoutSpots && numPayoutSpots > 0 && !tournamentState.hasAnnouncedITM) {
+            tournamentState.isITMAnnouncementPending = true;
+        }
+        
+        if (isLateRegClosed && activePlayersCount === (numPayoutSpots + 1) && numPayoutSpots > 0 && !tournamentState.isDealActive && !tournamentState.hasDealBeenOffered) {
+            tournamentState.isBubbleDealPending = true;
+        }
+        
+        if (activePlayersCount <= 1 && players.length > 1) {
+            if (isLateRegClosed) {
+                tournamentState.isWinnerReadyToAnnounce = true;
+            } else {
+                tournamentState.isWinnerPendingConfirmation = true;
+            }
+        } else if (activePlayersCount === 0 && players.length > 0) {
+            handlePauseTimer();
+        }
+        
+        updateAllUI();
+    };
+
+    const showWinnerConfirmation = () => {
+        showConfirmation('Is the tournament finished?', '',
+            () => { 
+                handleFinishTournament();
+            },
+            () => {}
+        );
+    }
+
+    const handleLevelChange = (direction, isManualSkip = false) => {
+        const durationOfCurrentStage = tournamentState.currentStageDuration;
+        const timeAlreadyElapsedInStage = durationOfCurrentStage - tournamentState.timeLeftInLevel;
+
+        if (isManualSkip) {
+            if (direction > 0) {
+                tournamentState.totalElapsedTime += tournamentState.timeLeftInLevel;
+            } else { 
+                let durationOfPreviousStage = 15 * 60; // default
+                
+                const prevStageIndex = tournamentState.currentLevelIndex - 1;
+                if (prevStageIndex >= 0) {
+                    durationOfPreviousStage = blindLevels[prevStageIndex].duration;
+                }
+                
+                tournamentState.totalElapsedTime -= (timeAlreadyElapsedInStage + durationOfPreviousStage);
+                if (tournamentState.totalElapsedTime < 0) tournamentState.totalElapsedTime = 0;
+            }
+        }
+
+        let newIndex = tournamentState.currentLevelIndex + direction;
+
+        if (newIndex >= 0 && newIndex < blindLevels.length) {
+             tournamentState.currentLevelIndex = newIndex;
+             const newStage = blindLevels[newIndex];
+             tournamentState.timeLeftInLevel = newStage.duration;
+             tournamentState.currentStageDuration = newStage.duration;
+        }
+
+        if (direction > 0) {
+            const newStage = blindLevels[tournamentState.currentLevelIndex];
+            if (newStage && newStage.type === 'break') {
+                playBreakChime();
+            } else {
+                playChime();
+            }
+        }
+        updateAllUI();
+    };
+
+    const handleTimeAdjustment = (seconds) => {
+        tournamentState.timeLeftInLevel += seconds;
+        tournamentState.totalElapsedTime -= seconds;
+
+        if (tournamentState.timeLeftInLevel < 0) {
+            tournamentState.totalElapsedTime += tournamentState.timeLeftInLevel;
+            tournamentState.timeLeftInLevel = 0;
+        }
+        if (tournamentState.totalElapsedTime < 0) {
+            tournamentState.totalElapsedTime = 0;
+        }
+        
+        updateAllUI();
+    };
+
+    const handlePauseTimer = () => {
+        tournamentState.isPaused = true;
+        clearInterval(tournamentState.timerInterval);
+        clearInterval(tournamentState.elapsedTimerInterval);
+        tournamentState.elapsedTimerInterval = null;
+        dom.pauseBtn.classList.add('hidden');
+        dom.resumeBtn.classList.remove('hidden');
+        dom.resumeBtn.classList.add('flex');
+        updateAllUI();
+    };
+
+    const handleResumeTimer = () => {
+        if (!tournamentState.isTournamentStarted) {
+            return;
+        }
+
+        if (tournamentState.isPaused) {
+            tournamentState.isPaused = false;
+            dom.resumeBtn.classList.add('hidden');
+            dom.resumeBtn.classList.remove('flex');
+            dom.pauseBtn.classList.remove('hidden');
+            dom.pauseBtn.classList.add('flex');
+            
+            tournamentState.timerInterval = setInterval(() => {
+                if (tournamentState.timeLeftInLevel > 0) {
+                    tournamentState.timeLeftInLevel--;
+                    renderTimer();
+                    updateTimerVisuals();
+                } else {
+                    handleLevelChange(1, false);
+                }
+            }, 1000);
+
+            if (!tournamentState.elapsedTimerInterval) {
+                tournamentState.elapsedTimerInterval = setInterval(() => {
+                    if (!tournamentState.isPaused) {
+                        tournamentState.totalElapsedTime++;
+                        renderStats();
+                    }
+                }, 1000);
+            }
+        }
+        updateAllUI();
+    };
+    
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => alert(`Error: ${err.message}`));
+        } else if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    };
+    
+    const updateFullscreenState = () => {
+        const isFullscreen = !!document.fullscreenElement;
+        dom.mainContainer.classList.toggle('is-fullscreen', isFullscreen);
+        dom.fullscreenOpenIcon.classList.toggle('hidden', isFullscreen);
+        dom.fullscreenCloseIcon.classList.toggle('hidden', !isFullscreen);
+    };
+
+    // --- MODAL CONTROLS ---
+    const showSimpleAlert = (message) => {
+        dom.simpleAlertMessage.textContent = message;
+        dom.simpleAlertModal.classList.remove('hidden');
+    };
+
+    // CHANGE 6: Added this new function
+    const populateLateRegDropdown = () => {
+        const select = dom.lateRegLevelInput;
+        if (!select) return; // Safety check
+        select.innerHTML = '';
+        let levelCounter = 0;
+        blindLevels.forEach((stage) => {
+            if (stage.type === 'level') {
+                levelCounter++;
+                const option = document.createElement('option');
+                option.value = levelCounter; // Store the level number
+                option.textContent = `Level ${levelCounter}`;
+                select.appendChild(option);
+            }
+        });
+    };
+
+    const openSettingsModal = (isInitialSetup = false) => {
+        if (isInitialSetup) {
+            dom.settingsCancelBtn.classList.add('hidden');
+            dom.settingsSaveBtn.textContent = 'Start Tournament';
+        } else {
+            tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+            if(tournamentState.wasPausedBeforeModal) handlePauseTimer();
+            dom.settingsCancelBtn.classList.remove('hidden');
+            dom.settingsSaveBtn.textContent = 'Save';
+        }
+        
+        dom.buyInInput.value = settings.buyIn;
+        dom.feeInput.value = settings.fee;
+        dom.gtdInput.value = settings.gtd;
+        dom.startingStackInput.value = settings.startingStack;
+        dom.onTimeBonusInput.value = settings.onTimeBonus;
+        dom.addOnPriceInput.value = settings.addOnPrice;
+        dom.addOnChipsInput.value = settings.addOnChips;
+        dom.addOnFeeInput.value = settings.addOnFee;
+        dom.pkoModeCheckbox.checked = settings.pkoMode;
+        dom.bountyPercentageInput.value = settings.bountyPercentage;
+        dom.bountyPercentageContainer.classList.toggle('hidden', !settings.pkoMode);
+
+        // Add-on toggle switch state — default OFF unless explicitly enabled
+        const addonEnabled = settings.addOnEnabled === true;
+        const addonCheckbox = document.getElementById('addon-enabled-checkbox');
+        if (addonCheckbox) {
+            addonCheckbox.checked = addonEnabled;
+            updateAddonToggleUI(addonEnabled);
+        }
+
+        // PKO toggle switch UI
+        updatePkoToggleUI(settings.pkoMode);
+        
+        if(tournamentState.isTournamentStarted) {
+            dom.pkoModeCheckbox.disabled = true;
+        } else {
+            dom.pkoModeCheckbox.disabled = false;
+        }
+
+        dom.settingsModal.classList.remove('hidden');
+    };
+    const closeSettingsModal = () => {
+        dom.settingsModal.classList.add('hidden');
+        if (!tournamentState.isTournamentStarted && tournamentState.wasPausedBeforeModal) {
+             handleResumeTimer();
+        }
+    };
+    const openPlayerModal = () => {
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if(tournamentState.wasPausedBeforeModal) handlePauseTimer();
+        dom.playerModal.classList.remove('hidden');
+    };
+    const closePlayerModal = () => {
+        if(tournamentState.isMultiBustMode) exitMultiBustMode();
+        dom.playerModal.classList.add('hidden');
+        
+        if (tournamentState.isWinnerReadyToAnnounce) {
+            tournamentState.isWinnerReadyToAnnounce = false;
+            handleFinishTournament();
+        } else if (tournamentState.isWinnerPendingConfirmation) {
+            tournamentState.isWinnerPendingConfirmation = false;
+            showWinnerConfirmation();
+        } else if (tournamentState.isITMAnnouncementPending) {
+             tournamentState.isITMAnnouncementPending = false;
+             tournamentState.hasAnnouncedITM = true;
+             dom.itmModal.classList.remove('hidden');
+             setTimeout(() => {
+                dom.itmModal.classList.add('hidden');
+             }, 10000);
+        } else if (tournamentState.isBubbleDealPending) {
+            tournamentState.isBubbleDealPending = false;
+            dom.bubbleTimeModal.classList.remove('hidden');
+            setTimeout(() => {
+                if (!dom.bubbleTimeModal.classList.contains('hidden')) {
+                    const prizePoolForDisplay = calculateFinalPayouts().reduce((sum, p) => sum + p.amount, 0);
+                    const payoutStructure = getPayoutStructure();
+                    showDealConfirmation(payoutStructure, prizePoolForDisplay);
+                }
+            }, 3000);
+        }
+
+        if(tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+    
+    const showConfirmation = (message, details, onConfirm, onCancel = null, onClose = null) => {
+        dom.confirmationMessage.innerHTML = message;
+        dom.confirmationDetails.innerHTML = details;
+        dom.confirmationModal.classList.remove('hidden');
+        
+        const newConfirmBtn = dom.confirmBtn.cloneNode(true);
+        dom.confirmBtn.parentNode.replaceChild(newConfirmBtn, dom.confirmBtn);
+        dom.confirmBtn = newConfirmBtn;
+        
+        const newCancelBtn = dom.cancelBtn.cloneNode(true);
+        dom.cancelBtn.parentNode.replaceChild(newCancelBtn, dom.cancelBtn);
+        dom.cancelBtn = newCancelBtn;
+
+        if (message === 'Is the tournament finished?') {
+            dom.confirmBtn.textContent = 'Yes';
+            dom.cancelBtn.textContent = 'No';
+        } else {
+            dom.confirmBtn.textContent = 'Confirm';
+            dom.cancelBtn.textContent = 'Cancel';
+        }
+
+        const hideConfirmation = () => {
+            dom.confirmationModal.classList.add('hidden');
+            if(onClose) onClose();
+        };
+        
+        dom.confirmBtn.addEventListener('click', () => { onConfirm(); hideConfirmation(); }, { once: true });
+        dom.cancelBtn.addEventListener('click', () => { if (onCancel) onCancel(); hideConfirmation(); }, { once: true });
+    };
+
+    const openEditPlayerModal = (player) => {
+        tournamentState.editingPlayerId = player.id;
+        dom.editPlayerNameInput.value = player.name;
+        dom.editPlayerModal.classList.remove('hidden');
+        dom.editPlayerNameInput.focus();
+    };
+
+    const closeEditPlayerModal = () => {
+        dom.editPlayerModal.classList.add('hidden');
+        tournamentState.editingPlayerId = null;
+    };
+    
+    const savePlayerName = () => {
+        const newName = dom.editPlayerNameInput.value.trim();
+        if (newName && tournamentState.editingPlayerId) {
+            const player = players.find(p => p.id === tournamentState.editingPlayerId);
+            if (player) {
+                player.name = newName;
+            }
+            closeEditPlayerModal();
+            updateAllUI();
+        }
+    };
+
+    const toggleMute = () => {
+        tournamentState.isMuted = !tournamentState.isMuted;
+        localStorage.setItem('pokerTournamentMuted', tournamentState.isMuted);
+        updateMuteButton();
+    };
+
+    const updateMuteButton = () => {
+        if (tournamentState.isMuted) {
+            dom.volumeOnIcon.classList.add('hidden');
+            dom.volumeOffIcon.classList.remove('hidden');
+        } else {
+            dom.volumeOnIcon.classList.remove('hidden');
+            dom.volumeOffIcon.classList.add('hidden');
+        }
+    };
+
+    const showDealConfirmation = (payoutStructure, prizePool) => {
+        tournamentState.hasDealBeenOffered = true;
+        dom.bubbleTimeModal.classList.add('hidden');
+        
+        const wasTimerRunning = !tournamentState.isPaused;
+        if(wasTimerRunning) handlePauseTimer();
+        
+        const bubblePrize = settings.buyIn;
+        const adjustedPrizePool = prizePool - tournamentState.bubbleProtectionPayouts - bubblePrize;
+        
+        let detailsHtml = `<div class="space-y-2 text-sm">
+            <div class="grid grid-cols-4 gap-2 font-bold text-[#b8c5d6] border-b border-[#2a3f5f] pb-1">
+                <span>Rank</span><span class="text-right">Original</span><span class="text-right">New</span><span class="text-right">Diff.</span>
+            </div>`;
+        
+        payoutStructure.forEach(p => {
+            const originalAmount = getPayoutByRank(p.rank);
+            const newAmount = Math.floor(adjustedPrizePool * (p.percent / 100));
+            const difference = originalAmount - newAmount;
+            const percentageLoss = originalAmount > 0 ? ((difference / originalAmount) * 100).toFixed(1) : 0;
+            
+            detailsHtml += `<div class="grid grid-cols-4 gap-2">
+                <span class="font-bold text-[#c9a84c]">${getOrdinalSuffix(p.rank)}</span>
+                <span class="text-right">${formatNumber(originalAmount)}</span>
+                <span class="text-right text-green-400">${formatNumber(newAmount)}</span>
+                <span class="text-right text-red-400">-${formatNumber(difference)} (${percentageLoss}%)</span>
+            </div>`;
+        });
+        
+        const bubbleRank = payoutStructure.length + 1;
+        detailsHtml += `<div class="grid grid-cols-4 gap-2 border-t border-[#2a3f5f] pt-2 mt-2">
+            <span class="font-bold text-[#c9a84c]">${getOrdinalSuffix(bubbleRank)}</span>
+            <span class="text-right">0</span>
+            <span class="text-right text-green-400">${formatNumber(bubblePrize)}</span>
+            <span class="text-right text-green-400">+${formatNumber(bubblePrize)}</span>
+        </div></div>`;
+        
+        showConfirmation('Confirm Bubble Deal?', detailsHtml,
+            () => { 
+                tournamentState.isDealActive = true;
+                if (!tournamentState.hasAnnouncedITM) {
+                    tournamentState.hasAnnouncedITM = true;
+                    dom.itmModal.classList.remove('hidden');
+                    setTimeout(() => {
+                        dom.itmModal.classList.add('hidden');
+                    }, 10000);
+                }
+                updateAllUI();
+                setTimeout(() => showSimpleAlert("Bubble Deal Successful!"), 100);
+            },
+            () => { 
+                tournamentState.hasDealBeenOffered = true;
+                if(wasTimerRunning) handleResumeTimer();
+            },
+            () => { 
+                 if(wasTimerRunning) handleResumeTimer();
+            }
+        );
+    };
+    
+    // --- DEAL FUNCTIONS ---
+    const updateDealButtons = () => {
+        if (tournamentState.isHeadsUp && !tournamentState.finalICMDeal) {
+            dom.chipChopDealContainer.classList.remove('hidden');
+        } else {
+            dom.chipChopDealContainer.classList.add('hidden');
+        }
+    }
+
+    const openChipChopDealModal = () => {
+        const activePlayers = players.filter(p => !p.isEliminated);
+        if (activePlayers.length !== 2) return;
+
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if(tournamentState.wasPausedBeforeModal) handlePauseTimer();
+
+        let totalChipStack = 0;
+        players.forEach(p => {
+            totalChipStack += p.buyInCount * settings.startingStack;
+            if (p.isOnTime && p.buyInCount > 0) {
+                totalChipStack += settings.onTimeBonus;
+            }
+            totalChipStack += p.addOnCount * settings.addOnChips;
+        });
+
+        dom.chipChopTotalChips.textContent = formatNumber(totalChipStack);
+        
+        dom.chipChopInputs.innerHTML = '';
+        activePlayers.forEach(player => {
+            const inputGroup = document.createElement('div');
+            inputGroup.innerHTML = `
+                <label for="player-chip-${player.id}" class="block text-sm font-medium text-[#b8c5d6]">${player.name}</label>
+                <input type="number" data-player-id="${player.id}" id="player-chip-${player.id}" class="chip-chop-player-chip-input mt-1 block w-full bg-[#1a2236] border-[#2a3f5f] rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-[#c9a84c] focus:border-yellow-500">
+            `;
+            dom.chipChopInputs.appendChild(inputGroup);
+        });
+
+        dom.chipChopDealModal.classList.remove('hidden');
+    };
+
+    const handleChipChopCalculation = () => {
+        const chipInputs = dom.chipChopInputs.querySelectorAll('.chip-chop-player-chip-input');
+        
+        let totalChipStack = 0;
+        players.forEach(p => {
+             totalChipStack += p.buyInCount * settings.startingStack;
+            if (p.isOnTime && p.buyInCount > 0) {
+                totalChipStack += settings.onTimeBonus;
+            }
+            totalChipStack += p.addOnCount * settings.addOnChips;
+        });
+        
+        let totalChipsEntered = 0;
+        let playerChipData = [];
+        
+        for(const input of chipInputs) {
+            const playerId = parseInt(input.dataset.playerId);
+            const chips = parseInt(input.value);
+            
+            if (isNaN(chips) || chips < 0) {
+                showSimpleAlert("Please enter a valid chip count for all players.");
+                return;
+            }
+            
+            totalChipsEntered += chips;
+            const player = players.find(p => p.id === playerId);
+            playerChipData.push({ player, chips });
+        }
+
+        if (totalChipsEntered < totalChipStack) {
+            showSimpleAlert(`Chip counts cannot be less than the total chips in play (${formatNumber(totalChipStack)}).`);
+            return;
+        }
+
+        const prize1st = getPayoutByRank(1);
+        const prize2nd = getPayoutByRank(2);
+        
+        if (prize1st === 0 || prize2nd === 0) {
+            showSimpleAlert("Payout structure not available for a deal.");
+            return;
+        }
+
+        const totalPrizePool = prize1st + prize2nd;
+        const prizeDifference = prize1st - prize2nd;
+        const guaranteedPrize = prize2nd;
+        
+        let totalNewAmount = 0;
+        const dealDataForPopup = playerChipData.map(data => {
+            const chipPercentage = data.chips / totalChipsEntered;
+            const icmShare = prizeDifference * chipPercentage;
+            const newAmount = guaranteedPrize + icmShare;
+            const roundedAmount = Math.round(newAmount)
+            totalNewAmount += roundedAmount;
+            return {
+                player: data.player,
+                chips: data.chips,
+                newAmount: roundedAmount
+            };
+        });
+
+        const remainder = totalPrizePool - totalNewAmount;
+        if(remainder !== 0 && dealDataForPopup.length > 0) {
+            dealDataForPopup.sort((a,b) => b.chips - a.chips)[0].newAmount += remainder;
+        }
+
+        dealDataForPopup.sort((a, b) => b.chips - a.chips);
+        dealDataForPopup[0].originalAmount = prize1st;
+        dealDataForPopup[1].originalAmount = prize2nd;
+
+        dom.chipChopDealModal.classList.add('hidden');
+        showChipChopDealConfirmation(dealDataForPopup);
+    };
+
+    const showChipChopDealConfirmation = (dealData) => {
+        const totalChips = dealData.reduce((sum, data) => sum + data.chips, 0);
+
+        let detailsHtml = `<div class="space-y-4 text-sm">
+            <div>
+                 <div class="grid grid-cols-3 gap-2 font-bold text-[#b8c5d6] border-b border-[#2a3f5f] pb-1 mb-2">
+                    <span>Player</span>
+                    <span class="text-right">Chips</span>
+                    <span class="text-right">%</span>
+                </div>`;
+        dealData.forEach(data => {
+             const chipPercent = totalChips > 0 ? ((data.chips / totalChips) * 100).toFixed(1) : '0.0';
+             detailsHtml += `
+                 <div class="grid grid-cols-3 gap-2 items-center">
+                    <span class="font-bold text-[#c9a84c] truncate">${data.player.name}</span>
+                    <span class="text-right tabular-nums-text">${formatNumber(data.chips)}</span>
+                    <span class="text-right tabular-nums-text text-[#8a9bb5]">${chipPercent}%</span>
+                </div>
+            `;
+        });
+        detailsHtml += `</div>
+            <div>
+                <div class="grid grid-cols-5 gap-2 font-bold text-[#b8c5d6] border-b border-[#2a3f5f] pb-1 mb-2">
+                    <span>Player</span>
+                    <span class="text-right">Original</span>
+                    <span class="text-right">New</span>
+                    <span class="text-right">Diff.</span>
+                    <span class="text-right">% Diff.</span>
+                </div>`;
+        
+        dealData.forEach(data => {
+            const difference = data.newAmount - data.originalAmount;
+            const diffClass = difference >= 0 ? 'text-green-400' : 'text-red-400';
+            const diffSign = difference >= 0 ? '+' : '';
+            const percentageChange = data.originalAmount > 0 ? ((difference / data.originalAmount) * 100).toFixed(1) : '100.0';
+
+            detailsHtml += `
+                <div class="grid grid-cols-5 gap-2 items-center">
+                    <span class="font-bold text-[#c9a84c] truncate">${data.player.name}</span>
+                    <span class="text-right tabular-nums-text">${formatNumber(data.originalAmount)}</span>
+                    <span class="text-right tabular-nums-text font-semibold ${diffClass}">${formatNumber(data.newAmount)}</span>
+                    <span class="text-right tabular-nums-text ${diffClass}">${diffSign}${formatNumber(difference)}</span>
+                    <span class="text-right tabular-nums-text ${diffClass}">${diffSign}${percentageChange}%</span>
+                </div>
+            `;
+        });
+        detailsHtml += `</div></div>`;
+
+        showConfirmation("Confirm Heads-Up Deal?", detailsHtml, 
+        () => { 
+            tournamentState.finalICMDeal = dealData.map(d => ({
+                playerId: d.player.id,
+                amount: d.newAmount,
+            }));
+            updateAllUI();
+            setTimeout(() => showSimpleAlert("Heads-Up Deal Successful!"), 100);
+        }, 
+        null, 
+        () => { 
+            if(tournamentState.wasPausedBeforeModal) handleResumeTimer();
+        });
+    }
+
+    const saveSettings = () => {
+        const isPkoMode = dom.pkoModeCheckbox.checked;
+        if (tournamentState.isTournamentStarted && settings.pkoMode !== isPkoMode) {
+            showSimpleAlert("PKO mode cannot be changed after the tournament has started.");
+            dom.pkoModeCheckbox.checked = settings.pkoMode;
+            return;
+        }
+        settings.pkoMode = isPkoMode;
+
+        const parsedBountyPerc = parseInt(dom.bountyPercentageInput.value);
+        if (settings.pkoMode) {
+            if (!Number.isFinite(parsedBountyPerc) || parsedBountyPerc < 0 || parsedBountyPerc > 100) {
+                showSimpleAlert("Bounty percentage must be between 0 and 100.");
+                return;
+            }
+            settings.bountyPercentage = parsedBountyPerc;
+        }
+
+        const parsedBuyIn = parseInt(dom.buyInInput.value);
+        settings.buyIn = Number.isFinite(parsedBuyIn) && parsedBuyIn >= 0 ? parsedBuyIn : 400;
+
+        const parsedFee = parseInt(dom.feeInput.value);
+        settings.fee = Number.isFinite(parsedFee) && parsedFee >= 0 ? parsedFee : 0; 
+
+        const parsedStack = parseInt(dom.startingStackInput.value);
+        settings.startingStack = Number.isFinite(parsedStack) && parsedStack > 0 ? parsedStack : 20000;
+
+        const parsedBonus = parseInt(dom.onTimeBonusInput.value);
+        settings.onTimeBonus = Number.isFinite(parsedBonus) && parsedBonus >= 0 ? parsedBonus : 2000;
+        
+        // CHANGE 6: Read value from <select>
+        const parsedLateReg = parseInt(dom.lateRegLevelInput.value);
+        settings.lateRegLevel = Number.isFinite(parsedLateReg) && parsedLateReg > 0 ? parsedLateReg : 10; // Default to 10
+
+        const parsedGtd = parseInt(dom.gtdInput.value);
+        settings.gtd = Number.isFinite(parsedGtd) && parsedGtd >= 0 ? parsedGtd : 0;
+        
+        const parsedAddOnPrice = parseInt(dom.addOnPriceInput.value);
+        settings.addOnPrice = Number.isFinite(parsedAddOnPrice) && parsedAddOnPrice >= 0 ? parsedAddOnPrice : 400;
+
+        const parsedAddOnChips = parseInt(dom.addOnChipsInput.value);
+        settings.addOnChips = Number.isFinite(parsedAddOnChips) && parsedAddOnChips >= 0 ? parsedAddOnChips : 20000;
+        
+        const parsedAddOnFee = parseInt(dom.addOnFeeInput.value);
+        settings.addOnFee = Number.isFinite(parsedAddOnFee) && parsedAddOnFee >= 0 ? parsedAddOnFee : 0;
+
+        // Save addon enabled state
+        const addonCheckbox = document.getElementById('addon-enabled-checkbox');
+        settings.addOnEnabled = addonCheckbox ? addonCheckbox.checked : false;
+        
+
+        if (!tournamentState.isTournamentStarted) {
+            tournamentState.isTournamentStarted = true;
+        }
+        closeSettingsModal();
+        updateAllUI();
+    };
+    
+    // --- Toggle switch UI helpers ---
+    const updateAddonToggleUI = (enabled) => {
+        const indicator = document.getElementById('addon-toggle-indicator');
+        const knob = document.getElementById('addon-toggle-knob');
+        const fields = document.getElementById('addon-fields');
+        if (!indicator) return;
+        if (enabled) {
+            indicator.classList.add('bg-[#c9a84c]');
+            indicator.classList.remove('bg-[#1e2d45]');
+            knob.style.transform = 'translateX(16px)';
+            fields.classList.remove('hidden');
+        } else {
+            indicator.classList.remove('bg-[#c9a84c]');
+            indicator.classList.add('bg-[#1e2d45]');
+            knob.style.transform = 'translateX(0)';
+            fields.classList.add('hidden');
+        }
+    };
+
+    const updatePkoToggleUI = (enabled) => {
+        const indicator = document.getElementById('pko-toggle-indicator');
+        const knob = document.getElementById('pko-toggle-knob');
+        if (!indicator) return;
+        if (enabled) {
+            indicator.classList.add('bg-[#c9a84c]');
+            indicator.classList.remove('bg-[#1e2d45]');
+            knob.style.transform = 'translateX(16px)';
+        } else {
+            indicator.classList.remove('bg-[#c9a84c]');
+            indicator.classList.add('bg-[#1e2d45]');
+            knob.style.transform = 'translateX(0)';
+        }
+    };
+
+    // --- Blinds Editor Functions ---
+    const openBlindsEditorModal = () => {
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if (tournamentState.wasPausedBeforeModal) handlePauseTimer();
+        tempBlindLevels = JSON.parse(JSON.stringify(blindLevels));
+        populateLateRegDropdown();
+        renderBlindsEditor();
+        dom.blindsEditorModal.classList.remove('hidden');
+    };
+
+    const renderBlindsEditor = () => {
+        dom.blindsEditorList.innerHTML = '';
+
+        // Update header level count
+        const levelCount = tempBlindLevels.filter(s => s.type === 'level').length;
+        const breakCount = tempBlindLevels.filter(s => s.type === 'break').length;
+        if (dom.blindsEditorLevelCount) {
+            dom.blindsEditorLevelCount.textContent = `(${levelCount} levels · ${breakCount} breaks)`;
+        }
+
+        const inputClass = 'w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 px-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50 focus:border-yellow-500';
+        const gridCols = "20px 52px 1fr 1fr 1fr 80px 1.4fr 28px";
+
+        tempBlindLevels.forEach((stage, index) => {
+            const stageDiv = document.createElement('div');
+            stageDiv.className = 'grid gap-x-3 items-center draggable';
+            stageDiv.style.gridTemplateColumns = gridCols;
+            stageDiv.setAttribute('draggable', true);
+            stageDiv.dataset.index = index;
+
+            const handle = `<div class="flex items-center justify-center text-[#4a5568] cursor-move">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+            </div>`;
+
+            if (stage.type === 'level') {
+                stageDiv.innerHTML = `
+                    ${handle}
+                    <div class="bg-[#1a2236]/50 rounded-lg py-2 px-2 text-center border border-[#2a3f5f]/30">
+                        <span class="font-bold text-[#c9a84c]">${stage.level}</span>
+                    </div>
+                    <input type="number" data-index="${index}" data-field="sb" value="${stage.sb}" class="${inputClass}">
+                    <input type="number" data-index="${index}" data-field="bb" value="${stage.bb}" class="${inputClass}">
+                    <input type="number" data-index="${index}" data-field="ante" value="${stage.ante}" class="${inputClass}">
+                    <input type="number" data-index="${index}" data-field="duration" value="${stage.duration / 60}" class="${inputClass}">
+                    <input type="text" data-index="${index}" data-field="message" value="${stage.message || ''}" placeholder="Note..." class="${inputClass} text-[#8a9bb5] placeholder-[#4a5568]">
+                `;
+            } else {
+                // Break row — spans differently
+                stageDiv.innerHTML = `
+                    ${handle}
+                    <div class="rounded-lg py-2 px-3 text-center border border-[#5b21b6]/50 bg-[#2d1b69]/30" style="grid-column: 2 / 6;">
+                        <span class="font-bold text-sm text-[#c4b5fd] tracking-widest uppercase">Break</span>
+                    </div>
+                    <input type="number" data-index="${index}" data-field="duration" value="${stage.duration / 60}" class="${inputClass}" style="grid-column: 6;">
+                    <input type="text" data-index="${index}" data-field="message" value="${stage.message || ''}" placeholder="e.g. Remove 100s" class="${inputClass} text-[#c4b5fd] placeholder-[#4a5568]" style="grid-column: 7;">
+                `;
+            }
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'flex items-center justify-center text-[#4a5568] hover:text-red-400 transition-colors';
+            deleteBtn.style.gridColumn = '8';
+            deleteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+            deleteBtn.onclick = () => {
+                tempBlindLevels.splice(index, 1);
+                reIndexLevels();
+                renderBlindsEditor();
+            };
+            stageDiv.appendChild(deleteBtn);
+            dom.blindsEditorList.appendChild(stageDiv);
+        });
+    };
+
+    const reIndexLevels = () => {
+        let levelCounter = 1;
+        tempBlindLevels.forEach(stage => {
+            if (stage.type === 'level') {
+                stage.level = levelCounter++;
+            }
+        });
+    };
+
+    const handleBlindsEditorAddLevel = () => {
+        const lastLevel = [...tempBlindLevels].reverse().find(s => s.type === 'level') || { level: 0, sb: 50, bb: 100, ante: 100, duration: 15 * 60 };
+        tempBlindLevels.push({
+            type: 'level',
+            level: lastLevel.level + 1,
+            sb: lastLevel.bb,
+            bb: lastLevel.bb * 2,
+            ante: lastLevel.bb * 2,
+            duration: lastLevel.duration,
+            message: '' // CHANGE 2: Added message
+        });
+        reIndexLevels();
+        renderBlindsEditor();
+        dom.blindsEditorList.scrollTop = dom.blindsEditorList.scrollHeight;
+    };
+    
+    const handleBlindsEditorAddBreak = () => {
+        tempBlindLevels.push({ type: 'break', duration: 10 * 60, message: '' }); // CHANGE 2: Added message
+        renderBlindsEditor();
+        dom.blindsEditorList.scrollTop = dom.blindsEditorList.scrollHeight;
+    };
+
+    const handleBlindsEditorReset = () => {
+        showConfirmation(
+            'Reset to default blind structure?',
+            '<p class="text-sm text-[#8a9bb5]">This will discard all current changes in the editor.</p>',
+            () => {
+                tempBlindLevels = JSON.parse(JSON.stringify(defaultBlindLevels));
+                renderBlindsEditor();
+            }
+        );
+    };
+
+    const handleBlindsEditorSave = () => {
+        const newBlinds = [];
+        let isValid = true;
+
+        tempBlindLevels.forEach((stage, index) => {
+            const row = dom.blindsEditorList.querySelector(`[data-index="${index}"]`);
+            if(!row) return;
+
+            const durationInput = row.querySelector('[data-field="duration"]');
+            const duration = parseInt(durationInput.value);
+
+            if(isNaN(duration) || duration <= 0) isValid = false;
+            
+            // CHANGE 2: Save message field
+            if (stage.type === 'level') {
+                const sbInput = row.querySelector('[data-field="sb"]');
+                const bbInput = row.querySelector('[data-field="bb"]');
+                const anteInput = row.querySelector('[data-field="ante"]');
+                const sb = parseInt(sbInput.value);
+                const bb = parseInt(bbInput.value);
+                const ante = parseInt(anteInput.value);
+
+                if (isNaN(sb) || isNaN(bb) || isNaN(ante) || sb < 0 || bb < 0 || ante < 0) {
+                    isValid = false;
+                }
+                newBlinds.push({ ...stage, sb, bb, ante, duration: duration * 60, message: row.querySelector('[data-field="message"]')?.value.trim() || '' });
+            } else {
+                const messageInput = row.querySelector('[data-field="message"]');
+                const message = messageInput ? messageInput.value.trim() : '';
+                newBlinds.push({ ...stage, duration: duration * 60, message: message });
+            }
+        });
+
+        if (!isValid) {
+            showSimpleAlert("Please enter valid, positive numbers for all fields.");
+            return;
+        }
+
+        blindLevels = newBlinds;
+
+        // Save Late Reg setting from dropdown
+        const parsedLateReg = parseInt(dom.lateRegLevelInput.value);
+        if (Number.isFinite(parsedLateReg) && parsedLateReg > 0) {
+            settings.lateRegLevel = parsedLateReg;
+        }
+        
+        const currentStageData = blindLevels[tournamentState.currentLevelIndex];
+        if (currentStageData) {
+             const timeElapsed = tournamentState.currentStageDuration - tournamentState.timeLeftInLevel;
+             tournamentState.currentStageDuration = currentStageData.duration;
+             tournamentState.timeLeftInLevel = Math.max(0, tournamentState.currentStageDuration - timeElapsed);
+        }
+
+        dom.blindsEditorModal.classList.add('hidden');
+        updateAllUI();
+        if (tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+
+    const handleBlindsEditorCancel = () => {
+        dom.blindsEditorModal.classList.add('hidden');
+        if (tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+    
+    // --- Template System ---
+    const TEMPLATE_STORAGE_KEY = 'pokerTimerBlindTemplates';
+
+    const loadTemplatesFromStorage = () => {
+        try {
+            const raw = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            return [];
+        }
+    };
+
+    const saveTemplatesToStorage = (templates) => {
+        localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(templates));
+    };
+
+    const openTemplateManagerModal = () => {
+        dom.templateNameInput.value = '';
+        renderTemplateList();
+        dom.templateManagerModal.classList.remove('hidden');
+    };
+
+    const closeTemplateManagerModal = () => {
+        dom.templateManagerModal.classList.add('hidden');
+    };
+
+    const renderTemplateList = () => {
+        const templates = loadTemplatesFromStorage();
+        dom.templateList.innerHTML = '';
+
+        if (templates.length === 0) {
+            dom.templateEmptyMsg.classList.remove('hidden');
+            return;
+        }
+        dom.templateEmptyMsg.classList.add('hidden');
+
+        templates.forEach((tpl, idx) => {
+            const levelCount = tpl.levels.filter(s => s.type === 'level').length;
+            const breakCount = tpl.levels.filter(s => s.type === 'break').length;
+            const firstLevel = tpl.levels.find(s => s.type === 'level');
+            const lastLevel = [...tpl.levels].reverse().find(s => s.type === 'level');
+            const previewText = firstLevel && lastLevel
+                ? `Lv1: ${formatChips(firstLevel.bb)} BB → Lv${lastLevel.level}: ${formatChips(lastLevel.bb)} BB`
+                : 'No levels';
+
+            const item = document.createElement('div');
+            item.className = 'bg-[#111827] hover:bg-[#1a2236] border border-[#1e2d45] hover:border-[#2a3f5f] rounded-xl p-4 flex items-center gap-3 transition-colors';
+            item.innerHTML = `
+                <div class="flex-grow min-w-0">
+                    <p class="font-bold text-white truncate">${tpl.name}</p>
+                    <p class="text-xs text-[#8a9bb5] mt-1 flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1"><span class="text-[#c9a84c]">▪</span>${levelCount} levels</span>
+                        <span class="inline-flex items-center gap-1"><span class="text-purple-400">▪</span>${breakCount} breaks</span>
+                        <span class="text-[#6b7a94]">·</span>
+                        <span class="text-blue-400">${previewText}</span>
+                    </p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button data-idx="${idx}" class="template-load-btn bg-[#c9a84c] hover:bg-[#e8c97a] text-black font-bold py-1.5 px-3 rounded-lg control-btn text-xs">Load</button>
+                    <button data-idx="${idx}" class="template-delete-btn bg-transparent hover:bg-red-900/40 border border-red-800/50 hover:border-red-600 text-red-400 hover:text-red-300 font-bold py-1.5 px-2.5 rounded-lg control-btn text-xs transition-colors" title="Delete template">🗑️</button>
+                </div>
+            `;
+            dom.templateList.appendChild(item);
+        });
+    };
+
+    const handleTemplateSaveCurrent = () => {
+        const name = dom.templateNameInput.value.trim();
+        if (!name) {
+            showSimpleAlert('Please enter a name for this template.');
+            return;
+        }
+
+        // Collect current tempBlindLevels values from the editor inputs
+        const currentLevels = [];
+        let isValid = true;
+        tempBlindLevels.forEach((stage, index) => {
+            const row = dom.blindsEditorList.querySelector(`[data-index="${index}"]`);
+            if (!row) { currentLevels.push(JSON.parse(JSON.stringify(stage))); return; }
+
+            const durationInput = row.querySelector('[data-field="duration"]');
+            const duration = parseInt(durationInput?.value);
+            if (isNaN(duration) || duration <= 0) { isValid = false; return; }
+
+            if (stage.type === 'level') {
+                const sb = parseInt(row.querySelector('[data-field="sb"]')?.value);
+                const bb = parseInt(row.querySelector('[data-field="bb"]')?.value);
+                const ante = parseInt(row.querySelector('[data-field="ante"]')?.value);
+                if (isNaN(sb) || isNaN(bb) || isNaN(ante)) { isValid = false; return; }
+                currentLevels.push({ ...stage, sb, bb, ante, duration: duration * 60, message: row.querySelector('[data-field="message"]')?.value.trim() || '' });
+            } else {
+                const message = row.querySelector('[data-field="message"]')?.value.trim() || '';
+                currentLevels.push({ ...stage, duration: duration * 60, message });
+            }
+        });
+
+        if (!isValid || currentLevels.length === 0) {
+            showSimpleAlert('Please fix any invalid values in the editor before saving a template.');
+            return;
+        }
+
+        const templates = loadTemplatesFromStorage();
+        
+        // Check for duplicate name and confirm overwrite
+        const existingIdx = templates.findIndex(t => t.name.toLowerCase() === name.toLowerCase());
+        if (existingIdx !== -1) {
+            showConfirmation(
+                `Template "${name}" already exists.`,
+                '<p class="text-sm text-[#8a9bb5]">Do you want to overwrite it?</p>',
+                () => {
+                    templates[existingIdx] = { name, levels: currentLevels };
+                    saveTemplatesToStorage(templates);
+                    dom.templateNameInput.value = '';
+                    renderTemplateList();
+                    showSimpleAlert(`Template "${name}" updated!`);
+                }
+            );
+            return;
+        }
+
+        templates.push({ name, levels: currentLevels });
+        saveTemplatesToStorage(templates);
+        dom.templateNameInput.value = '';
+        renderTemplateList();
+        showSimpleAlert(`Template "${name}" saved!`);
+    };
+
+    const handleTemplateLoad = (idx) => {
+        const templates = loadTemplatesFromStorage();
+        const tpl = templates[idx];
+        if (!tpl) return;
+
+        showConfirmation(
+            `Load template "${tpl.name}"?`,
+            '<p class="text-sm text-[#8a9bb5]">This will replace your current blind structure in the editor.</p>',
+            () => {
+                tempBlindLevels = JSON.parse(JSON.stringify(tpl.levels));
+                reIndexLevels();
+                renderBlindsEditor();
+                closeTemplateManagerModal();
+                showSimpleAlert(`Template "${tpl.name}" loaded! Press Save to apply.`);
+            }
+        );
+    };
+
+    const handleTemplateDelete = (idx) => {
+        const templates = loadTemplatesFromStorage();
+        const tpl = templates[idx];
+        if (!tpl) return;
+
+        showConfirmation(
+            `Delete template "${tpl.name}"?`,
+            '<p class="text-sm text-[#8a9bb5]">This action cannot be undone.</p>',
+            () => {
+                templates.splice(idx, 1);
+                saveTemplatesToStorage(templates);
+                renderTemplateList();
+            }
+        );
+    };
+
+    
+    let draggedIndex = null;
+
+    dom.blindsEditorList.addEventListener('dragstart', (e) => {
+        draggedIndex = parseInt(e.target.closest('.draggable').dataset.index);
+        e.dataTransfer.effectAllowed = 'move';
+    });
+
+    dom.blindsEditorList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.draggable');
+        if (target) {
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+            target.classList.add('drag-over');
+        }
+    });
+    
+     dom.blindsEditorList.addEventListener('dragleave', (e) => {
+        const target = e.target.closest('.draggable');
+        if (target) {
+            target.classList.remove('drag-over');
+        }
+    });
+
+    dom.blindsEditorList.addEventListener('drop', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        const target = e.target.closest('.draggable');
+        if (target) {
+            const droppedOnIndex = parseInt(target.dataset.index);
+            if (draggedIndex !== null && draggedIndex !== droppedOnIndex) {
+                const item = tempBlindLevels.splice(draggedIndex, 1)[0];
+                tempBlindLevels.splice(droppedOnIndex, 0, item);
+                reIndexLevels();
+                renderBlindsEditor();
+            }
+        }
+        draggedIndex = null;
+    });
+
+
+    // --- Multi-Bust ---
+    const enterMultiBustMode = () => {
+        tournamentState.isMultiBustMode = true;
+        tournamentState.multiBustSelection = [];
+        dom.playerAddControls.classList.add('hidden');
+        dom.multiBustControls.classList.remove('hidden');
+        renderPlayers();
+    };
+
+    const exitMultiBustMode = () => {
+        tournamentState.isMultiBustMode = false;
+        tournamentState.multiBustSelection = [];
+        dom.playerAddControls.classList.remove('hidden');
+        dom.multiBustControls.classList.add('hidden');
+        renderPlayers();
+    };
+
+    const confirmMultiBust = () => {
+        const selectionCount = tournamentState.multiBustSelection.length;
+        if (selectionCount < 2) {
+            showSimpleAlert('Please select 2 or more players for a multiple bust.');
+            return;
+        }
+        
+        if (settings.pkoMode) {
+            tournamentState.pendingBust = { bustedPlayers: [...tournamentState.multiBustSelection], type: 'multi' };
+            openEliminatorModal();
+        } else {
+            const playerNames = tournamentState.multiBustSelection.map(id => players.find(p => p.id === id).name).join(', ');
+            showConfirmation(`Confirm bust out for ${selectionCount} players?`, `<p class="text-sm text-[#b8c5d6]">${playerNames}</p>`, () => {
+                processBustsWithEliminators(tournamentState.multiBustSelection, []);
+                exitMultiBustMode();
+            });
+        }
+    };
+    
+    const openEliminatorModal = () => {
+        const bustedPlayerIds = tournamentState.pendingBust.bustedPlayers;
+        const bustedPlayers = bustedPlayerIds.map(id => players.find(p => p.id === id));
+        
+        const activePlayers = players.filter(p => !p.isEliminated && !bustedPlayerIds.includes(p.id));
+        
+        if (activePlayers.length === 0) {
+            showSimpleAlert('No active players available to select as eliminators. Busting player without awarding bounty.');
+            processBustsWithEliminators(bustedPlayerIds, []);
+            if(tournamentState.isMultiBustMode) exitMultiBustMode();
+            tournamentState.pendingBust = null;
+            return;
+        }
+        
+        if (bustedPlayers.length === 1) {
+            dom.eliminatorModalTitle.textContent = `Who eliminated ${bustedPlayers[0].name}?`;
+        } else {
+            const names = bustedPlayers.map(p => p.name).slice(0, 2).join(' & ');
+            const more = bustedPlayers.length > 2 ? ` and ${bustedPlayers.length - 2} more` : '';
+            dom.eliminatorModalTitle.textContent = `Who eliminated ${names}${more}?`;
+        }
+        
+        let infoHtml = '<div class="text-sm">';
+        let totalDisplayBounty = 0;
+        bustedPlayers.forEach(p => {
+            if(!p) return;
+            const displayBounty = Math.round(p.currentBounty / 2);
+            totalDisplayBounty += displayBounty;
+            if (bustedPlayers.length > 1) {
+                 infoHtml += `<p>${p.name}: 🎯 ${formatNumber(displayBounty)}</p>`;
+            }
+        });
+        infoHtml += `<p class="text-[#c9a84c] font-bold mt-2">Total Bounty to Award: 🎯 ${formatNumber(totalDisplayBounty)}</p></div>`;
+        dom.eliminatorBountyInfo.innerHTML = infoHtml;
+        
+        dom.eliminatorCheckboxList.innerHTML = '';
+        activePlayers.forEach(player => {
+            const label = document.createElement('label');
+            label.className = 'flex items-center p-2 rounded-lg hover:bg-[#1a2236] cursor-pointer';
+            label.innerHTML = `
+                <input type="checkbox" data-player-id="${player.id}" class="eliminator-checkbox w-4 h-4 text-[#a07830] bg-[#1a2236] border-[#2a3f5f] rounded focus:ring-[#c9a84c] mr-3">
+                <span class="font-semibold">${player.name}</span>
+            `;
+            dom.eliminatorCheckboxList.appendChild(label);
+        });
+        
+        dom.eliminatorModal.classList.remove('hidden');
+    };
+    
+    const handleEliminatorConfirm = () => {
+        const checkboxes = document.querySelectorAll('.eliminator-checkbox:checked');
+        const eliminatorIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.playerId));
+        
+        if (eliminatorIds.length === 0) {
+            showSimpleAlert('Please select at least one eliminator.');
+            return;
+        }
+        
+        dom.eliminatorModal.classList.add('hidden');
+        
+        const bustedPlayerIds = tournamentState.pendingBust.bustedPlayers;
+        processBustsWithEliminators(bustedPlayerIds, eliminatorIds);
+        
+        if (tournamentState.isMultiBustMode) {
+            exitMultiBustMode();
+        }
+        
+        tournamentState.pendingBust = null;
+    };
+    
+    // --- Payout Editor Functions ---
+    const openPayoutEditorModal = () => {
+        tournamentState.wasPausedBeforeModal = !tournamentState.isPaused;
+        if (tournamentState.wasPausedBeforeModal) handlePauseTimer();
+        
+        const currentStructure = getPayoutStructure();
+        tempPayoutStructure = JSON.parse(JSON.stringify(currentStructure));
+        
+        renderPayoutEditor();
+        dom.payoutEditorModal.classList.remove('hidden');
+
+        // Wire preset buttons every time modal opens
+        document.querySelectorAll('.payout-preset-btn').forEach(btn => {
+            btn.onclick = () => {
+                dom.payoutPresets.value = btn.dataset.preset;
+                handlePayoutPresetChange();
+            };
+        });
+    };
+
+    const renderPayoutEditor = () => {
+        dom.payoutEditorList.innerHTML = '';
+        const medalMap = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        tempPayoutStructure.forEach((payout, index) => {
+            const row = document.createElement('div');
+            row.className = 'grid gap-x-3 items-center';
+            row.style.gridTemplateColumns = '1fr 120px 36px';
+            const medal = medalMap[payout.rank] || `<span class="text-sm font-bold text-[#a07830]">${getOrdinalSuffix(payout.rank)}</span>`;
+            row.innerHTML = `
+                <div class="flex items-center gap-2.5 bg-[#1a2236]/50 rounded-lg px-3 py-2 border border-[#2a3f5f]/30">
+                    <span class="text-xl leading-none">${medalMap[payout.rank] || ''}</span>
+                    <span class="font-semibold text-sm ${payout.rank <= 3 ? 'text-[#c9a84c]' : 'text-[#b8c5d6]'}">${getOrdinalSuffix(payout.rank)} Place</span>
+                </div>
+                <div class="relative flex items-center">
+                    <input type="number" data-index="${index}" value="${payout.percent}" min="0" max="100" class="payout-percent-input w-full bg-[#1a2236] border border-[#2a3f5f]/50 rounded-lg py-2 pl-3 pr-7 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#c9a84c]/50">
+                    <span class="absolute right-2.5 text-[#6b7a94] text-sm pointer-events-none">%</span>
+                </div>
+            `;
+            dom.payoutEditorList.appendChild(row);
+        });
+        updatePayoutTotal();
+    };
+    
+    const updatePayoutTotal = () => {
+        let total = 0;
+        dom.payoutEditorList.querySelectorAll('.payout-percent-input').forEach((input, index) => {
+            const perc = parseFloat(input.value) || 0;
+            if (tempPayoutStructure[index]) {
+                tempPayoutStructure[index].percent = perc;
+            }
+            total += perc;
+        });
+        dom.payoutTotalPercentage.textContent = `${total.toFixed(2)}%`;
+        const bar = document.getElementById('payout-total-bar');
+        if (total === 100) {
+            dom.payoutTotalPercentage.classList.remove('text-red-500', 'text-[#c9a84c]');
+            dom.payoutTotalPercentage.classList.add('text-green-400');
+            if (bar) { bar.style.width = '100%'; bar.className = 'h-1.5 rounded-full transition-all duration-300 bg-green-500'; }
+        } else if (total > 100) {
+            dom.payoutTotalPercentage.classList.remove('text-green-400', 'text-[#c9a84c]');
+            dom.payoutTotalPercentage.classList.add('text-red-500');
+            if (bar) { bar.style.width = '100%'; bar.className = 'h-1.5 rounded-full transition-all duration-300 bg-red-500'; }
+        } else {
+            dom.payoutTotalPercentage.classList.remove('text-green-400', 'text-red-500');
+            dom.payoutTotalPercentage.classList.add('text-[#c9a84c]');
+            if (bar) { bar.style.width = `${Math.min(total, 100)}%`; bar.className = 'h-1.5 rounded-full transition-all duration-300 bg-[#c9a84c]'; }
+        }
+    };
+    
+    const handlePayoutPresetChange = () => {
+        const preset = dom.payoutPresets.value;
+        if (preset === 'top2') {
+            tempPayoutStructure = [{rank: 1, percent: 70}, {rank: 2, percent: 30}];
+        } else if (preset === 'top3') {
+            tempPayoutStructure = [{rank: 1, percent: 50}, {rank: 2, percent: 30}, {rank: 3, percent: 20}];
+        } else if (preset === 'top4') {
+            tempPayoutStructure = [{rank: 1, percent: 50}, {rank: 2, percent: 25}, {rank: 3, percent: 15}, {rank: 4, percent: 10}];
+        }
+        renderPayoutEditor();
+    };
+
+    const handlePayoutEditorSave = () => {
+        updatePayoutTotal();
+        let total = tempPayoutStructure.reduce((sum, p) => sum + p.percent, 0);
+        if (total !== 100) {
+            showSimpleAlert(`Total percentage must be 100%, but it is currently ${total.toFixed(2)}%.`);
+            return;
+        }
+        customPayoutStructure = JSON.parse(JSON.stringify(tempPayoutStructure));
+        closePayoutEditorModal();
+        updateAllUI();
+    };
+
+    const closePayoutEditorModal = () => {
+        dom.payoutEditorModal.classList.add('hidden');
+        if (tournamentState.wasPausedBeforeModal) handleResumeTimer();
+    };
+
+    const startCountdown = async () => {
+        initAudio();
+        dom.startBtn.disabled = true;
+        const originalText = dom.timerDisplay.textContent;
+
+        dom.timerDisplay.textContent = '3';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+
+        dom.timerDisplay.textContent = '2';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+        
+        dom.timerDisplay.textContent = '1';
+        playBeep();
+        await new Promise(res => setTimeout(res, 1000));
+        
+        dom.timerDisplay.textContent = originalText;
+        playChime();
+
+        dom.startBtn.classList.add('hidden');
+        dom.runningControls.classList.remove('hidden');
+        dom.runningControls.style.display = 'flex';
+        tournamentState.isTournamentStarted = true;
+        handleResumeTimer();
+        dom.startBtn.disabled = false;
+    };
+
+    // --- INITIALIZATION ---
+    const initializeApp = () => {
+        const savedName = localStorage.getItem('pokerTournamentName');
+        if (savedName) {
+            settings.tournamentName = savedName;
+            dom.tournamentTitle.textContent = savedName;
+        }
+        dom.tournamentTitle.addEventListener('blur', () => {
+            const newName = dom.tournamentTitle.textContent.trim();
+            if (newName) {
+                settings.tournamentName = newName;
+                localStorage.setItem('pokerTournamentName', newName);
+            } else {
+                dom.tournamentTitle.textContent = settings.tournamentName;
+            }
+        });
+        dom.tournamentTitle.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                dom.tournamentTitle.blur();
+            }
+        });
+
+        const savedMuteState = localStorage.getItem('pokerTournamentMuted');
+        if (savedMuteState !== null) {
+            tournamentState.isMuted = savedMuteState === 'true';
+        }
+        updateMuteButton();
+        
+        dom.addPlayerBtn.addEventListener('click', handleAddPlayer);
+        dom.playerNameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') handleAddPlayer();
+        });
+
+        // On-Time pill visual toggle
+        dom.onTimeCheckbox.addEventListener('change', () => {
+            const label = document.getElementById('on-time-label');
+            if (dom.onTimeCheckbox.checked) {
+                label.classList.add('border-green-500', 'bg-green-900/30', 'text-green-400');
+                label.classList.remove('border-[#2a3f5f]', 'bg-[#1a2236]', 'text-[#8a9bb5]');
+            } else {
+                label.classList.remove('border-green-500', 'bg-green-900/30', 'text-green-400');
+                label.classList.add('border-[#2a3f5f]', 'bg-[#1a2236]', 'text-[#8a9bb5]');
+            }
+        });
+
+        dom.playerList.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const playerId = parseInt(button.dataset.id);
+            const player = players.find(p => p.id === playerId);
+            if (!player && action !== 'toggle-kebab') return;
+
+            if (action === 'toggle-kebab') {
+                e.stopPropagation();
+                const dropdown = document.getElementById(`dropdown-${playerId}`);
+                const isVisible = dropdown.classList.contains('show');
+                document.querySelectorAll('.dropdown-content').forEach(menu => menu.classList.remove('show'));
+                if (!isVisible) {
+                    dropdown.classList.add('show');
+                }
+                return;
+            }
+            
+            switch (action) {
+                case 'bust':
+                    if (settings.pkoMode) {
+                        tournamentState.pendingBust = { bustedPlayers: [playerId], type: 'single' };
+                        openEliminatorModal();
+                    } else {
+                        showConfirmation(`Confirm Bust Out for ${player.name}?`, '', () => {
+                            processBustsWithEliminators([playerId], []);
+                        });
+                    }
+                    break;
+                case 're-entry':
+                    showConfirmation(`Confirm Re-entry for ${player.name}?`, '', () => {
+                        player.isEliminated = false;
+                        player.eliminationOrder = 0;
+                        player.buyInCount++;
+                        player.hasBubbleProtection = false;
+                        player.wasAwardedBubbleProtection = false; // Reset awarded status
+                        if (settings.pkoMode) {
+                            player.currentBounty = player.initialBounty;
+                        }
+                        tournamentState.isHeadsUp = false;
+                        tournamentState.finalICMDeal = null;
+                        recalculateRanks(); 
+                        updateAllUI();
+                    });
+                    break;
+                case 'edit':
+                    openEditPlayerModal(player);
+                    break;
+                case 'add-addon':
+                    if (player.isEliminated) {
+                        showSimpleAlert(`${player.name} is eliminated and cannot take an add-on.`);
+                        break;
+                    }
+                    if (player.addOnCount > 0) {
+                        showSimpleAlert(`${player.name} has already taken an add-on.`);
+                    } else {
+                        showConfirmation(`Confirm Add-on for ${player.name}?`, '', () => {
+                            player.addOnCount = 1;
+                            updateAllUI();
+                        });
+                    }
+                    break;
+                // CHANGE 4: Added confirmation for Bubble Protection
+                case 'bubble':
+                    const actionText = player.hasBubbleProtection ? "Remove" : "Add";
+                    const currentStatus = player.hasBubbleProtection ? "Active" : "Inactive";
+                    showConfirmation(
+                        `${actionText} Bubble Protection?`,
+                        `<p>Player: <span class="font-bold">${player.name}</span><br>Current Status: <span class="font-bold">${currentStatus}</span></p>`,
+                        () => { // onConfirm
+                            player.hasBubbleProtection = !player.hasBubbleProtection;
+                            updateAllUI();
+                        }
+                    );
+                    break;
+                case 'delete':
+                    showConfirmation(`Permanently delete ${player.name}? This cannot be undone.`, '', () => {
+                        const wasEliminated = player.isEliminated;
+                        players = players.filter(p => p.id !== playerId);
+                        if (wasEliminated) {
+                            recalculateRanks();
+                        }
+                        updateAllUI();
+                    });
+                    break;
+            }
+            document.querySelectorAll('.dropdown-content.show').forEach(menu => menu.classList.remove('show'));
+        });
+        
+        window.addEventListener('click', (event) => {
+            if (!event.target.closest('.dropdown')) {
+                document.querySelectorAll('.dropdown-content').forEach(menu => menu.classList.remove('show'));
+            }
+        });
+
+        dom.playerList.addEventListener('change', (e) => {
+            if (e.target.classList.contains('multi-bust-checkbox')) {
+                const playerId = parseInt(e.target.dataset.id);
+                if (e.target.checked) {
+                    tournamentState.multiBustSelection.push(playerId);
+                } else {
+                    tournamentState.multiBustSelection = tournamentState.multiBustSelection.filter(id => id !== playerId);
+                }
+            }
+        });
+        dom.startBtn.addEventListener('click', () => {
+            if (players.length < 2) {
+                showSimpleAlert('Please add at least two players to start the tournament.');
+                return;
+            }
+            startCountdown();
+        });
+        dom.nextLevelBtn.addEventListener('click', () => showConfirmation('Advance to the next stage?', '', () => handleLevelChange(1, true)));
+        dom.prevLevelBtn.addEventListener('click', () => showConfirmation('Go back to the previous stage?', '', () => handleLevelChange(-1, true)));
+        dom.forwardBtn.addEventListener('click', () => handleTimeAdjustment(60));
+        dom.rewindBtn.addEventListener('click', () => handleTimeAdjustment(-60));
+        dom.pauseBtn.addEventListener('click', handlePauseTimer);
+        dom.resumeBtn.addEventListener('click', handleResumeTimer);
+
+        dom.settingsToggleBtn.addEventListener('click', () => openSettingsModal(false));
+        dom.settingsSaveBtn.addEventListener('click', saveSettings);
+        dom.settingsCancelBtn.addEventListener('click', closeSettingsModal);
+        
+        dom.pkoModeCheckbox.addEventListener('change', () => {
+            dom.bountyPercentageContainer.classList.toggle('hidden', !dom.pkoModeCheckbox.checked);
+            updatePkoToggleUI(dom.pkoModeCheckbox.checked);
+        });
+
+        // Add-on toggle switch
+        const addonToggleLabel = document.getElementById('addon-toggle-label');
+        const addonCheckbox = document.getElementById('addon-enabled-checkbox');
+        if (addonToggleLabel && addonCheckbox) {
+            addonToggleLabel.addEventListener('click', () => {
+                addonCheckbox.checked = !addonCheckbox.checked;
+                updateAddonToggleUI(addonCheckbox.checked);
+            });
+        }
+
+        // PKO toggle disabled (coming soon)
+
+        dom.playerToggleBtn.addEventListener('click', openPlayerModal);
+        dom.playerModalCloseBtn.addEventListener('click', closePlayerModal);
+        
+        dom.multiBustBtn.addEventListener('click', enterMultiBustMode);
+        dom.multiBustCancelBtn.addEventListener('click', exitMultiBustMode);
+        dom.multiBustConfirmBtn.addEventListener('click', confirmMultiBust);
+
+        dom.editPlayerSaveBtn.addEventListener('click', savePlayerName);
+        dom.editPlayerCancelBtn.addEventListener('click', closeEditPlayerModal);
+        dom.editPlayerNameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') savePlayerName();
+        });
+        
+        dom.fullscreenBtn.addEventListener('click', toggleFullscreen);
+        document.addEventListener('fullscreenchange', updateFullscreenState);
+        
+        dom.simpleAlertOkBtn.addEventListener('click', () => dom.simpleAlertModal.classList.add('hidden'));
+        dom.winnerModalCloseBtn.addEventListener('click', () => dom.winnerModal.classList.add('hidden'));
+        dom.bubbleTimeCloseBtn.addEventListener('click', () => dom.bubbleTimeModal.classList.add('hidden'));
+
+        dom.muteBtn.addEventListener('click', toggleMute);
+
+        dom.chipChopDealBtn.addEventListener('click', openChipChopDealModal);
+        dom.chipChopCancelBtn.addEventListener('click', () => {
+            dom.chipChopDealModal.classList.add('hidden');
+            if(tournamentState.wasPausedBeforeModal) handleResumeTimer();
+        });
+        dom.chipChopCalculateBtn.addEventListener('click', handleChipChopCalculation);
+        
+        dom.blindsEditorToggleBtn.addEventListener('click', openBlindsEditorModal);
+        dom.blindsEditorSaveBtn.addEventListener('click', handleBlindsEditorSave);
+        dom.blindsEditorCancelBtn.addEventListener('click', handleBlindsEditorCancel);
+        dom.blindsEditorAddLevelBtn.addEventListener('click', handleBlindsEditorAddLevel);
+        dom.blindsEditorAddBreakBtn.addEventListener('click', handleBlindsEditorAddBreak);
+        dom.blindsEditorResetBtn.addEventListener('click', handleBlindsEditorReset);
+        
+        // Template Manager
+        dom.blindsEditorTemplatesBtn.addEventListener('click', openTemplateManagerModal);
+        dom.templateManagerCloseBtn.addEventListener('click', closeTemplateManagerModal);
+        dom.templateSaveCurrentBtn.addEventListener('click', handleTemplateSaveCurrent);
+        dom.templateNameInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') handleTemplateSaveCurrent();
+        });
+        dom.templateList.addEventListener('click', (e) => {
+            const loadBtn = e.target.closest('.template-load-btn');
+            const deleteBtn = e.target.closest('.template-delete-btn');
+            if (loadBtn) handleTemplateLoad(parseInt(loadBtn.dataset.idx));
+            if (deleteBtn) handleTemplateDelete(parseInt(deleteBtn.dataset.idx));
+        });
+        
+        dom.payoutEditorToggleBtn.addEventListener('click', openPayoutEditorModal);
+        dom.payoutEditorSaveBtn.addEventListener('click', handlePayoutEditorSave);
+        dom.payoutEditorCancelBtn.addEventListener('click', closePayoutEditorModal);
+        dom.payoutPresets.addEventListener('change', handlePayoutPresetChange);
+        dom.payoutEditorList.addEventListener('input', updatePayoutTotal);
+        dom.payoutEditorAddBtn.addEventListener('click', () => {
+            const lastRank = tempPayoutStructure.length > 0 ? tempPayoutStructure[tempPayoutStructure.length - 1].rank : 0;
+            tempPayoutStructure.push({ rank: lastRank + 1, percent: 0 });
+            renderPayoutEditor();
+        });
+        dom.payoutEditorRemoveBtn.addEventListener('click', () => {
+            if (tempPayoutStructure.length > 0) {
+                tempPayoutStructure.pop();
+                renderPayoutEditor();
+            }
+        });
+        
+        dom.eliminatorConfirmBtn.addEventListener('click', handleEliminatorConfirm);
+        dom.eliminatorCancelBtn.addEventListener('click', () => {
+            dom.eliminatorModal.classList.add('hidden');
+            tournamentState.pendingBust = null;
+        });
+
+        updateAllUI();
+        openSettingsModal(true);
+    };
+
+    initializeApp();
+});
+</script>
+</body>
+</html>
+
